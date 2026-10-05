@@ -308,17 +308,7 @@ EasyBannerAd(
 )
 ```
 
-The widget loads itself when it enters the tree. It is not a preload object, and there is no separate `load()` call. While the request is in flight, that same box shows a skeleton in the shape of the banner: an image block, text lines, and a red **Ad** label in the top-left corner. When the ad loads, it replaces the skeleton in that box, so the screen does not jump. If both networks fail, the widget collapses and the skeleton goes away.
-
-Pass `loading` to use your own shimmer or placeholder instead of that skeleton. The widget is given the banner's width and height, and it is removed when the ad fills.
-
-```dart
-EasyBannerAd(
-  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/bbbbbbbbbb',
-  size: EasyBannerSize.banner,
-  loading: const MyBannerShimmer(),
-)
-```
+The widget loads itself when it enters the tree. It is not a preload object, and there is no separate `load()` call. While the request is in flight, that same box shows a skeleton. When the ad loads, it replaces the skeleton in that box. See [Loading placeholder](#loading-placeholder) for the built-in shapes and for passing your own shimmer through `loading`.
 
 Changing the ad unit id, the Facebook placement id, or the size disposes the current ad and sends a new request.
 
@@ -343,19 +333,75 @@ EasyNativeAd(
 
 Keep `height` at 250 or more. Meta does not count an impression when the media area is shorter than that. Do not put this widget inside another widget that clips it, such as a shorter `SizedBox`.
 
-The widget loads itself when it enters the tree. While the request is in flight, the same box shows a skeleton in the shape of the native template: icon, title, media, body, call-to-action, and a red **Ad** label in the top-left corner. The loaded ad replaces that skeleton without changing `height`. If both networks fail, the widget collapses and the skeleton goes away.
-
-Pass `loading` when the built-in skeleton is not the one you want. Your widget is laid out in that same box and removed when the ad fills.
-
-```dart
-EasyNativeAd(
-  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/nnnnnnnnnn',
-  height: 400,
-  loading: const MyNativeShimmer(),
-)
-```
+The widget loads itself when it enters the tree. While the request is in flight, the same box shows a skeleton of this height. The loaded ad replaces it without changing `height`. Pass `loading` to draw your own shimmer in that box. The shapes, the red **Ad** label, and a copy-paste widget are in [Loading placeholder](#loading-placeholder).
 
 Changing the ad unit id or the Facebook placement id sends a new request.
+
+## Loading placeholder
+
+Banner and native ads reserve their box as soon as the widget is built. Until an ad fills, that box shows the built-in skeleton: gray blocks in the shape of that format, and a red **Ad** label in the top-left corner.
+
+| Format | What the skeleton looks like | Box size |
+|---|---|---|
+| `EasyBannerSize.banner` | Image block and two text lines | 50 tall |
+| `EasyBannerSize.large` | Image, text, and a button | 100 tall, or 90 when Meta fills |
+| `EasyBannerSize.mediumRectangle` | Large image, text, and a button | 250 tall |
+| Native | Icon, title, media, body, and a call-to-action | The `height` you pass, 320 by default |
+
+When the ad loads, it replaces the skeleton in the same box, so the screen does not jump. If every network fails, the box collapses and the skeleton is removed.
+
+### Your own shimmer
+
+Pass `loading` to draw your own widget in that box. Any widget works: a shimmer from another package, a static placeholder, or the class below. The SDK already forces it to the ad's width and height, so do not wrap it in a different height. The loaded ad replaces it. A failed load removes it.
+
+Omit `loading` to keep the built-in skeleton. Interstitials, rewarded ads, and rewarded interstitials do not take this parameter. Those ads are preloaded and shown later.
+
+```dart
+class AdShimmer extends StatelessWidget {
+  const AdShimmer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0xFFECEFF1),
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: Padding(
+          padding: EdgeInsets.all(6),
+          child: Text(
+            'Ad',
+            style: TextStyle(
+              color: Color(0xFFD32F2F),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+EasyBannerAd(
+  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/bbbbbbbbbb',
+  facebookPlacementId: 'YOUR_FACEBOOK_BANNER_PLACEMENT', // optional
+  size: EasyBannerSize.large,
+  loading: const AdShimmer(),
+  onLoading: () {},
+  onLoaded: (network) {},
+  onError: (error) {},
+)
+
+EasyNativeAd(
+  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/nnnnnnnnnn',
+  facebookPlacementId: 'YOUR_FACEBOOK_NATIVE_PLACEMENT', // optional
+  height: 400,
+  loading: const AdShimmer(),
+  onLoading: () {},
+  onLoaded: (network) {},
+  onError: (error) {},
+)
+```
 
 ## 7. Preload full-screen ads
 

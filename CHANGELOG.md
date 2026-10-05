@@ -9,3 +9,4 @@
 * Documents full-screen preload, separate ad instances, banner sizes, and native height.
 * Shows a same-size skeleton, with a red Ad label, while a banner or native ad is loading.
 * Banner and native ads accept a `loading` widget so an app can supply its own shimmer.
+* Documents the built-in loading skeleton and a copy-paste custom shimmer.
