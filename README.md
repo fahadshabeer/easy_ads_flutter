@@ -308,7 +308,17 @@ EasyBannerAd(
 )
 ```
 
-The widget loads itself when it enters the tree. It is not a preload object, and there is no separate `load()` call. While the request is in flight the widget keeps an empty area of that height, so the screen does not jump when the ad arrives. If both networks fail, the widget collapses.
+The widget loads itself when it enters the tree. It is not a preload object, and there is no separate `load()` call. While the request is in flight, that same box shows a skeleton in the shape of the banner: an image block, text lines, and a red **Ad** label in the top-left corner. When the ad loads, it replaces the skeleton in that box, so the screen does not jump. If both networks fail, the widget collapses and the skeleton goes away.
+
+Pass `loading` to use your own shimmer or placeholder instead of that skeleton. The widget is given the banner's width and height, and it is removed when the ad fills.
+
+```dart
+EasyBannerAd(
+  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/bbbbbbbbbb',
+  size: EasyBannerSize.banner,
+  loading: const MyBannerShimmer(),
+)
+```
 
 Changing the ad unit id, the Facebook placement id, or the size disposes the current ad and sends a new request.
 
@@ -333,7 +343,19 @@ EasyNativeAd(
 
 Keep `height` at 250 or more. Meta does not count an impression when the media area is shorter than that. Do not put this widget inside another widget that clips it, such as a shorter `SizedBox`.
 
-The widget loads itself when it enters the tree. Changing the ad unit id or the Facebook placement id sends a new request.
+The widget loads itself when it enters the tree. While the request is in flight, the same box shows a skeleton in the shape of the native template: icon, title, media, body, call-to-action, and a red **Ad** label in the top-left corner. The loaded ad replaces that skeleton without changing `height`. If both networks fail, the widget collapses and the skeleton goes away.
+
+Pass `loading` when the built-in skeleton is not the one you want. Your widget is laid out in that same box and removed when the ad fills.
+
+```dart
+EasyNativeAd(
+  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/nnnnnnnnnn',
+  height: 400,
+  loading: const MyNativeShimmer(),
+)
+```
+
+Changing the ad unit id or the Facebook placement id sends a new request.
 
 ## 7. Preload full-screen ads
 

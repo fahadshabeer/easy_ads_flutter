@@ -10,6 +10,7 @@ import '../easy_ads.dart';
 import '../facebook/facebook_bridge.dart';
 import '../internal/ad_ids.dart';
 import '../internal/waterfall.dart';
+import 'ad_loading_skeleton.dart';
 import 'facebook_platform_view.dart';
 
 /// A native ad that uses AdMob's medium template, or Facebook's built-in
@@ -23,6 +24,7 @@ class EasyNativeAd extends StatefulWidget {
     required this.admobAdUnitId,
     this.facebookPlacementId,
     this.height = 320,
+    this.loading,
     this.onLoading,
     this.onLoaded,
     this.onError,
@@ -37,6 +39,12 @@ class EasyNativeAd extends StatefulWidget {
   /// Height of the template. Facebook needs at least 250 to count an
   /// impression, so the default is 320.
   final double height;
+
+  /// Shimmer or other placeholder shown until the native ad fills.
+  ///
+  /// It is laid out in the same box as the ad and removed when the ad
+  /// loads. Omit it to use the built-in skeleton.
+  final Widget? loading;
 
   /// Called once, when the first request starts.
   final VoidCallback? onLoading;
@@ -54,7 +62,6 @@ class EasyNativeAd extends StatefulWidget {
 class _EasyNativeAdState extends State<EasyNativeAd> {
   int _generation = 0;
   bool _failed = false;
-  bool _loading = false;
   NativeAd? _admobAd;
   Widget? _adView;
   String? _facebookId;
@@ -102,7 +109,7 @@ class _EasyNativeAdState extends State<EasyNativeAd> {
       return;
     }
 
-    setState(() => _loading = true);
+    setState(() {});
     _notify(widget.onLoading);
     final failures = <EasyAdFailure>[];
     final network = await runWaterfall(
@@ -119,7 +126,7 @@ class _EasyNativeAdState extends State<EasyNativeAd> {
       _fail(generation, noFillError(failures));
       return;
     }
-    setState(() => _loading = false);
+    setState(() {});
     _notify(() => widget.onLoaded?.call(network));
   }
 
@@ -230,7 +237,6 @@ class _EasyNativeAdState extends State<EasyNativeAd> {
 
   Future<void> _releaseCurrent() async {
     _disposeAdmob();
-    _loading = false;
     _failed = false;
     await _clearFacebook();
   }
@@ -249,10 +255,7 @@ class _EasyNativeAdState extends State<EasyNativeAd> {
     if (!mounted || generation != _generation) {
       return;
     }
-    setState(() {
-      _loading = false;
-      _failed = true;
-    });
+    setState(() => _failed = true);
     _notify(() => widget.onError?.call(error));
   }
 
@@ -270,13 +273,12 @@ class _EasyNativeAdState extends State<EasyNativeAd> {
 
   @override
   Widget build(BuildContext context) {
-    if (_failed) {
-      return const SizedBox.shrink();
-    }
-    return SizedBox(
-      width: double.infinity,
+    return AdLoadingSlot(
       height: widget.height,
-      child: _adView ?? (_loading ? const SizedBox.shrink() : null),
+      failed: _failed,
+      ad: _adView,
+      loading: widget.loading,
+      fallback: const AdLoadingSkeleton(kind: AdSkeletonKind.native),
     );
   }
 }

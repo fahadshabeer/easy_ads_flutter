@@ -11,6 +11,7 @@ import '../easy_ads.dart';
 import '../facebook/facebook_bridge.dart';
 import '../internal/ad_ids.dart';
 import '../internal/waterfall.dart';
+import 'ad_loading_skeleton.dart';
 import 'facebook_platform_view.dart';
 
 /// A banner that loads AdMob first or Facebook first, then falls back.
@@ -24,6 +25,7 @@ class EasyBannerAd extends StatefulWidget {
     required this.admobAdUnitId,
     this.facebookPlacementId,
     this.size = EasyBannerSize.banner,
+    this.loading,
     this.onLoading,
     this.onLoaded,
     this.onError,
@@ -37,6 +39,12 @@ class EasyBannerAd extends StatefulWidget {
 
   /// Banner size. The default is the standard 50pt banner.
   final EasyBannerSize size;
+
+  /// Shimmer or other placeholder shown until the banner fills.
+  ///
+  /// It is laid out in the banner's own box and removed when the ad
+  /// loads. Omit it to use the built-in skeleton.
+  final Widget? loading;
 
   /// Called once, when the first request starts.
   final VoidCallback? onLoading;
@@ -107,6 +115,7 @@ class _EasyBannerAdState extends State<EasyBannerAd> {
     if (!mounted || generation != _generation) {
       return;
     }
+    setState(() {});
 
     if (!EasyAds.isInitialized) {
       _fail(generation, notInitializedError());
@@ -281,13 +290,18 @@ class _EasyBannerAdState extends State<EasyBannerAd> {
 
   @override
   Widget build(BuildContext context) {
-    if (_failed) {
-      return const SizedBox.shrink();
-    }
-    return SizedBox(
-      width: double.infinity,
+    return AdLoadingSlot(
       height: _height,
-      child: _adView ?? const SizedBox.shrink(),
+      failed: _failed,
+      ad: _adView,
+      loading: widget.loading,
+      fallback: AdLoadingSkeleton(
+        kind: switch (widget.size) {
+          EasyBannerSize.banner => AdSkeletonKind.banner,
+          EasyBannerSize.large => AdSkeletonKind.largeBanner,
+          EasyBannerSize.mediumRectangle => AdSkeletonKind.mediumRectangle,
+        },
+      ),
     );
   }
 }
