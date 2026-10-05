@@ -29,6 +29,8 @@ Every ad has `onLoading`, `onLoaded`, and `onError`.
 
 Full-screen ads also have `onClosed`. Rewarded ads and rewarded interstitials also have `onReward`.
 
+Banners and native ads load themselves when the widget is on screen. Interstitials, rewarded ads, and rewarded interstitials do not. You preload those, keep the object, and call `show()` later. See [Preload full-screen ads](#7-preload-full-screen-ads).
+
 ## How fallback works
 
 You pick one priority when the SDK starts: AdMob first, or Facebook first.
@@ -285,106 +287,231 @@ Set `testMode` to `false` before you ship. A second call to `initialize` does no
 
 ## 5. Banner
 
+Three sizes work on both networks. Pass `size`. If you omit it, the widget uses `EasyBannerSize.banner`.
+
+| Size | AdMob | Meta |
+|---|---|---|
+| `EasyBannerSize.banner` | 320×50 | 50 tall |
+| `EasyBannerSize.large` | 320×100 | 90 tall |
+| `EasyBannerSize.mediumRectangle` | 300×250 | 300×250 |
+
+`large` is 100 tall when AdMob fills and 90 tall when Meta fills. The other two sizes use the same height on both networks.
+
 ```dart
 EasyBannerAd(
   admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/bbbbbbbbbb',
   facebookPlacementId: 'YOUR_FACEBOOK_BANNER_PLACEMENT', // optional
-  size: EasyBannerSize.banner,
+  size: EasyBannerSize.mediumRectangle,
   onLoading: () => debugPrint('banner loading'),
   onLoaded: (network) => debugPrint('banner from ${network.name}'),
   onError: (error) => debugPrint('banner failed: $error'),
 )
 ```
 
-`EasyBannerSize.banner` is the standard banner. `EasyBannerSize.large` is the taller banner. `EasyBannerSize.mediumRectangle` is 300x250.
+The widget loads itself when it enters the tree. It is not a preload object, and there is no separate `load()` call. While the request is in flight the widget keeps an empty area of that height, so the screen does not jump when the ad arrives. If both networks fail, the widget collapses.
 
-The widget loads itself. While it is loading it keeps its height empty, so the screen does not jump when the ad arrives. If both networks fail, it collapses.
-
-Changing the ad unit id, the Facebook placement id, or the size loads a new ad.
+Changing the ad unit id, the Facebook placement id, or the size disposes the current ad and sends a new request.
 
 ## 6. Native
+
+There is one native template. AdMob uses Google's medium template. Meta uses the template built into this package: icon, title, sponsored label, media, body, and call-to-action button. There is no small native template, and this version does not take button colors or a custom layout.
+
+The ad is drawn inside a box with a fixed `height`. The default is 320. That box does not grow with the screen size, the system font size, or the length of the ad text. If the template is taller than the box, Flutter clips the bottom, and the call-to-action is the part that disappears. A clipped call-to-action is an ad-policy problem: the button, the text, and the ad choices icon all have to be fully visible.
+
+Pass a height that fits the whole template on the phones you support. Where 320 cuts the button off, 400 is a practical height:
 
 ```dart
 EasyNativeAd(
   admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/nnnnnnnnnn',
   facebookPlacementId: 'YOUR_FACEBOOK_NATIVE_PLACEMENT', // optional
-  height: 320,
+  height: 400,
   onLoading: () {},
   onLoaded: (network) {},
   onError: (error) {},
 )
 ```
 
-AdMob uses the medium native template. Facebook uses the template built into this package: icon, title, sponsored label, media, body, and call-to-action button. Keep `height` at 250 or more. Facebook does not count an impression when the media is shorter than that.
+Keep `height` at 250 or more. Meta does not count an impression when the media area is shorter than that. Do not put this widget inside another widget that clips it, such as a shorter `SizedBox`.
 
-This version does not take button colors or a custom layout. That can be added later without changing the load and fallback behavior.
+The widget loads itself when it enters the tree. Changing the ad unit id or the Facebook placement id sends a new request.
 
-## 7. Interstitial
+## 7. Preload full-screen ads
 
-Create it once, load it before you need it, then show it.
+Interstitials, rewarded ads, and rewarded interstitials share this behavior. You create an object, call `load()`, keep that object, and call `show()` when you want the ad on screen. Banners and native ads do not work this way. Those widgets request an ad when they are built.
+
+### One object holds one ad
+
+`load()` sends a request only when that object is empty.
+
+* Already loaded: `load()` returns `true` and does not send another request. Check this with `isLoaded`.
+* A request is already in flight: another `load()` waits for that same request. It does not start a second one.
+* `show()` throws `StateError` when nothing is loaded yet. Check `isLoaded`, or use the `bool` returned by `load()`, before you show.
+* After the user closes the ad, the object is empty again. The next `load()` is what sends a new request.
+* `dispose()` drops the cached ad. Call it only when that object will never be shown again.
+
+Put the next `load()` in `onClosed`. That request runs after the ad the user just saw, so you are not requesting a second ad while the first one is still loaded.
+
+The SDK does not refresh a loaded ad on a timer. AdMob stops serving an interstitial or rewarded ad that has been sitting for about an hour. If `show()` fails, call `load()` again.
+
+### One object per place you show an ad
+
+A splash screen, a download button, and a notification screen each need their own object. Showing one does not clear the others. A second `load()` on an object that is already loaded does not add another request, so the request count stays at one per object until that ad is shown.
+
+Create the objects once, after `EasyAds.initialize` has finished, and keep them for as long as those screens can show an ad. Constructing a new object every time the user opens a screen is a new request. That is the pattern that raises request volume and hurts fill.
+
+Use a different AdMob ad unit, and a different Meta placement, for each place. The id has to be an interstitial id. A banner id fails, and the SDK then tries the other network.
 
 ```dart
-final interstitial = EasyInterstitialAd(
-  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/iiiiiiiiii',
-  facebookPlacementId: 'YOUR_FACEBOOK_INTERSTITIAL_PLACEMENT', // optional
-  onLoading: () {},
-  onLoaded: (network) {},
-  onError: (error) {},
-  onClosed: () {
-    // The ad was dismissed. Load another one if you will show it again.
-  },
-);
+class AdSlots {
+  AdSlots() {
+    splash = EasyInterstitialAd(
+      admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/splash',
+      facebookPlacementId: 'YOUR_SPLASH_PLACEMENT',
+      onLoading: () {},
+      onLoaded: (network) {},
+      onError: (error) {},
+      onClosed: () => splash.load(),
+    );
+    download = EasyInterstitialAd(
+      admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/download',
+      facebookPlacementId: 'YOUR_DOWNLOAD_PLACEMENT',
+      onLoading: () {},
+      onLoaded: (network) {},
+      onError: (error) {},
+      onClosed: () => download.load(),
+    );
+    notification = EasyInterstitialAd(
+      admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/notification',
+      facebookPlacementId: 'YOUR_NOTIFICATION_PLACEMENT',
+      onLoading: () {},
+      onLoaded: (network) {},
+      onError: (error) {},
+      onClosed: () => notification.load(),
+    );
+  }
 
-final loaded = await interstitial.load();
-if (loaded) {
+  late final EasyInterstitialAd splash;
+  late final EasyInterstitialAd download;
+  late final EasyInterstitialAd notification;
+
+  /// One request per slot. Calling this again while a slot is still
+  /// loaded does not send another request for that slot.
+  Future<void> preload() {
+    return Future.wait([
+      splash.load(),
+      download.load(),
+      notification.load(),
+    ]);
+  }
+
+  Future<void> showSplash() async {
+    if (!splash.isLoaded) {
+      return;
+    }
+    await splash.show();
+  }
+
+  Future<void> dispose() async {
+    await splash.dispose();
+    await download.dispose();
+    await notification.dispose();
+  }
+}
+```
+
+Create the slots once, then call `preload()` after `EasyAds.initialize` finishes. `onClosed` calls `load()` on that same object, so only the slot that was just shown requests the next ad. The other two stay loaded and do not request again.
+
+Rewarded ads and rewarded interstitials use the same rules. Grant the reward in `onReward`. Preload the next ad in `onClosed`, not in `onReward`, because the user can earn the reward and still be looking at the ad.
+
+## 8. Interstitial
+
+Follow [Preload full-screen ads](#7-preload-full-screen-ads). This is the smallest version of that pattern: one object, load before the moment you need it, show the ad you already have.
+
+```dart
+late final EasyInterstitialAd interstitial;
+
+void createInterstitial() {
+  interstitial = EasyInterstitialAd(
+    admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/iiiiiiiiii',
+    facebookPlacementId: 'YOUR_FACEBOOK_INTERSTITIAL_PLACEMENT', // optional
+    onLoading: () {},
+    onLoaded: (network) {},
+    onError: (error) {},
+    onClosed: () => interstitial.load(),
+  );
+}
+
+Future<void> showInterstitial() async {
+  final loaded = await interstitial.load();
+  if (!loaded) {
+    return;
+  }
   await interstitial.show();
 }
 ```
 
-`show()` throws a `StateError` if you call it before `onLoaded`. After `onClosed`, the ad is spent. Call `load()` again before the next `show()`.
+`load()` returns `true` when this object already has an ad, and in that case it does not request again. `show()` throws `StateError` if you call it before a load has filled. After `onClosed`, call `load()` before the next `show()`. Call `dispose()` when you will never show this object again.
 
-Call `interstitial.dispose()` when the screen that owns it is disposed.
-
-## 8. Rewarded
+## 9. Rewarded
 
 ```dart
-final rewarded = EasyRewardedAd(
-  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/rrrrrrrrrr',
-  facebookPlacementId: 'YOUR_FACEBOOK_REWARDED_PLACEMENT', // optional
-  onLoading: () {},
-  onLoaded: (network) {},
-  onError: (error) {},
-  onClosed: () {},
-  onReward: (reward) {
-    // Grant reward.amount of reward.type.
-    // reward.network tells you who paid for it.
-  },
-);
+late final EasyRewardedAd rewarded;
 
-await rewarded.load();
-await rewarded.show();
+void createRewarded() {
+  rewarded = EasyRewardedAd(
+    admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/rrrrrrrrrr',
+    facebookPlacementId: 'YOUR_FACEBOOK_REWARDED_PLACEMENT', // optional
+    onLoading: () {},
+    onLoaded: (network) {},
+    onError: (error) {},
+    onClosed: () => rewarded.load(),
+    onReward: (reward) {
+      // Grant reward.amount of reward.type.
+      // reward.network tells you who paid for it.
+    },
+  );
+}
+
+Future<void> showRewarded() async {
+  if (!await rewarded.load()) {
+    return;
+  }
+  await rewarded.show();
+}
 ```
 
 AdMob sends the amount and type configured on the ad unit. Facebook sends amount `1` and type `reward` when the video completes. Grant the reward inside `onReward`, not inside `onClosed`. The user can close a rewarded ad without earning it.
 
-## 9. Rewarded interstitial
+This object follows [Preload full-screen ads](#7-preload-full-screen-ads). `load()` does not send another request while `isLoaded` is true. Call `load()` from `onClosed` when you want the next rewarded ad ready. Use a separate `EasyRewardedAd` for each place you show one.
+
+## 10. Rewarded interstitial
 
 Same callbacks as rewarded. Show it at a natural break, the same way you show an interstitial.
 
 ```dart
-final rewardedInterstitial = EasyRewardedInterstitialAd(
-  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/wwwwwwwwww',
-  facebookPlacementId: 'YOUR_FACEBOOK_REWARDED_INTERSTITIAL_PLACEMENT',
-  onLoading: () {},
-  onLoaded: (network) {},
-  onError: (error) {},
-  onClosed: () {},
-  onReward: (reward) {},
-);
+late final EasyRewardedInterstitialAd rewardedInterstitial;
 
-await rewardedInterstitial.load();
-await rewardedInterstitial.show();
+void createRewardedInterstitial() {
+  rewardedInterstitial = EasyRewardedInterstitialAd(
+    admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/wwwwwwwwww',
+    facebookPlacementId: 'YOUR_FACEBOOK_REWARDED_INTERSTITIAL_PLACEMENT',
+    onLoading: () {},
+    onLoaded: (network) {},
+    onError: (error) {},
+    onClosed: () => rewardedInterstitial.load(),
+    onReward: (reward) {},
+  );
+}
+
+Future<void> showRewardedInterstitial() async {
+  if (!await rewardedInterstitial.load()) {
+    return;
+  }
+  await rewardedInterstitial.show();
+}
 ```
+
+This object follows [Preload full-screen ads](#7-preload-full-screen-ads). `onClosed` preloads the next ad. `onReward` only grants the reward.
 
 ## Reading errors
 
