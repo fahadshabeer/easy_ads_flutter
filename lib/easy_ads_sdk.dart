@@ -1,4 +1,5 @@
 export 'src/ad_error.dart';
+export 'src/consent_debug.dart';
 export 'src/ad_network.dart';
 export 'src/ad_priority.dart';
 export 'src/ads/easy_banner_ad.dart';

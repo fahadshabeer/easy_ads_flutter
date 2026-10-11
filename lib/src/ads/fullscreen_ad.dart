@@ -206,8 +206,12 @@ abstract class FullScreenAdBase {
   }
 
   Future<bool> _load() async {
-    if (!EasyAds.isInitialized) {
-      onError?.call(notInitializedError());
+    final blocked = await EasyAds.prepareRequest();
+    if (_disposed) {
+      return false;
+    }
+    if (blocked != null) {
+      onError?.call(blocked);
       return false;
     }
     onLoading?.call();

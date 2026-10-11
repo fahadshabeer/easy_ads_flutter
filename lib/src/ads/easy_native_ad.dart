@@ -104,12 +104,17 @@ class _EasyNativeAdState extends State<EasyNativeAd> {
     if (!mounted || generation != _generation) {
       return;
     }
-    if (!EasyAds.isInitialized) {
-      _fail(generation, notInitializedError());
+    setState(() {});
+
+    final blocked = await EasyAds.prepareRequest();
+    if (!mounted || generation != _generation) {
+      return;
+    }
+    if (blocked != null) {
+      _fail(generation, blocked);
       return;
     }
 
-    setState(() {});
     _notify(widget.onLoading);
     final failures = <EasyAdFailure>[];
     final network = await runWaterfall(

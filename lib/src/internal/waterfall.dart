@@ -61,6 +61,29 @@ EasyAdError notInitializedError() {
   );
 }
 
+/// Error used when consent does not allow an ad request.
+EasyAdError consentRequiredError() {
+  return const EasyAdError(
+    message:
+        'Ads cannot be requested. European consent is required '
+        'and has not been granted.',
+  );
+}
+
+/// Why an ad request must stop, or null when it may start.
+EasyAdError? adRequestBlock({
+  required bool initialized,
+  required bool canRequestAds,
+}) {
+  if (!initialized) {
+    return notInitializedError();
+  }
+  if (!canRequestAds) {
+    return consentRequiredError();
+  }
+  return null;
+}
+
 /// Error used when every network in the waterfall failed.
 EasyAdError noFillError(List<EasyAdFailure> failures) {
   if (failures.isEmpty) {

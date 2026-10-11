@@ -3,28 +3,35 @@ import 'package:easy_ads_sdk/easy_ads_sdk.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EasyAds.initialize(
+  final startup = EasyAds.initialize(
     priority: EasyAdPriority.admob,
     facebook: const FacebookOptions(),
     testMode: true,
   );
-  runApp(const ExampleApp());
+  runApp(ExampleApp(startup: startup));
+  await startup;
 }
 
 class ExampleApp extends StatelessWidget {
-  const ExampleApp({super.key});
+  const ExampleApp({super.key, this.startup});
+
+  /// Finishes consent and ad startup. The widget test omits it.
+  final Future<void>? startup;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Easy Ads',
-      home: const ExampleHome(),
+      home: ExampleHome(startup: startup),
     );
   }
 }
 
 class ExampleHome extends StatefulWidget {
-  const ExampleHome({super.key});
+  const ExampleHome({super.key, this.startup});
+
+  /// Finishes consent and ad startup. The widget test omits it.
+  final Future<void>? startup;
 
   @override
   State<ExampleHome> createState() => _ExampleHomeState();
@@ -32,6 +39,7 @@ class ExampleHome extends StatefulWidget {
 
 class _ExampleHomeState extends State<ExampleHome> {
   String _status = 'Ready';
+  bool _privacyOptions = false;
   late final EasyInterstitialAd _interstitial = EasyInterstitialAd(
     admobAdUnitId: EasyTestIds.interstitial,
     facebookPlacementId: EasyTestIds.facebookInterstitial,
@@ -63,6 +71,27 @@ class _ExampleHomeState extends State<ExampleHome> {
         _setStatus('Rewarded interstitial reward: ${reward.amount} ${reward.type}'),
   );
 
+  @override
+  void initState() {
+    super.initState();
+    final startup = widget.startup;
+    if (startup != null) {
+      startup.then((_) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _privacyOptions = EasyAds.isPrivacyOptionsRequired;
+          if (!EasyAds.canRequestAds) {
+            _status = 'Ads are waiting for consent';
+          }
+        });
+      }).catchError((Object error) {
+        _setStatus('$error');
+      });
+    }
+  }
+
   void _setStatus(String value) {
     if (!mounted) {
       return;
@@ -86,6 +115,22 @@ class _ExampleHomeState extends State<ExampleHome> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(_status),
+          if (_privacyOptions)
+            TextButton(
+              onPressed: () async {
+                try {
+                  await EasyAds.showPrivacyOptionsForm();
+                  _setStatus(
+                    EasyAds.canRequestAds
+                        ? 'Privacy options saved'
+                        : 'Ads are waiting for consent',
+                  );
+                } catch (error) {
+                  _setStatus('$error');
+                }
+              },
+              child: const Text('Privacy options'),
+            ),
           const SizedBox(height: 16),
           const Text('Native'),
           const SizedBox(height: 8),

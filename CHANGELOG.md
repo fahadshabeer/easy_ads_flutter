@@ -10,3 +10,4 @@
 * Shows a same-size skeleton, with a red Ad label, while a banner or native ad is loading.
 * Banner and native ads accept a `loading` widget so an app can supply its own shimmer.
 * Documents the built-in loading skeleton and a copy-paste custom shimmer.
+* Gathers European consent before ad requests and blocks ads until consent allows them.

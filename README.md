@@ -267,14 +267,17 @@ import 'package:easy_ads_sdk/easy_ads_sdk.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await EasyAds.initialize(
+  final startup = EasyAds.initialize(
     priority: EasyAdPriority.admob, // or EasyAdPriority.facebook
     facebook: const FacebookOptions(), // omit this to skip Facebook
     testMode: true, // false in production
   );
   runApp(const MyApp());
+  await startup;
 }
 ```
+
+Call `runApp` before you await `initialize`. Startup asks for European consent first, and that form is a native dialog that needs the app on screen. Ads requested while startup is still running wait for it. They do not request again on their own if consent is refused.
 
 `testMode: true` does two things:
 
@@ -284,6 +287,59 @@ Future<void> main() async {
 Set `testMode` to `false` before you ship. A second call to `initialize` does not change the priority or the test mode chosen by the first call.
 
 `EasyTestIds` holds Google's demo ad units and Meta's public sample placement ids, if you want to pass those ids yourself.
+
+## European consent
+
+`initialize` gathers consent before AdMob or Meta is started. Google's User Messaging Platform decides who sees the form. People in the EEA, the UK, and Switzerland see it when your AdMob account has a published GDPR message. Everyone else continues without a dialog, and `EasyAds.canRequestAds` becomes true.
+
+No extra native SDK is required. The consent library ships inside Google Mobile Ads.
+
+### AdMob message
+
+In AdMob, open **Privacy & messaging** and publish a **GDPR** message for this app. Include every ad partner you use. Meta Audience Network reads the consent string that this form writes, so Meta has to be selected as an ad partner in that message. Without a published message, European users are not shown a form and ad requests stay blocked.
+
+The same startup also covers a published US state privacy message. You do not add a second call.
+
+### What the app still adds
+
+Put a privacy entry point on a settings screen when `EasyAds.isPrivacyOptionsRequired` is true. Google requires that entry point so a European user can change the choice later.
+
+```dart
+if (EasyAds.isPrivacyOptionsRequired)
+  ListTile(
+    title: const Text('Privacy options'),
+    onTap: () async {
+      await EasyAds.showPrivacyOptionsForm();
+    },
+  )
+```
+
+After that form closes, read `EasyAds.canRequestAds` again before you load another ad. A refusal blocks every format. The SDK does not request a network that the user has not allowed.
+
+On iOS, request App Tracking Transparency before `initialize`, as shown above. The tracking prompt and the European consent form are separate. Show the tracking prompt first.
+
+Users under the age of consent must not see the form:
+
+```dart
+await EasyAds.initialize(
+  tagForUnderAgeOfConsent: true,
+);
+```
+
+### Testing the form outside Europe
+
+The form stays hidden on a device that is not in Europe. Force it on a debug build only. The first consent run prints a hashed device id in the debug log. Put that id in `testDeviceIds`.
+
+```dart
+EasyAds.initialize(
+  consentDebug: EasyConsentDebug(
+    geography: EasyConsentDebugGeography.eea,
+    testDeviceIds: ['YOUR_HASHED_DEVICE_ID'],
+  ),
+);
+```
+
+Remove `consentDebug` before release. `EasyConsentDebugGeography.other` checks the path where no form should appear.
 
 ## 5. Banner
 

@@ -117,8 +117,12 @@ class _EasyBannerAdState extends State<EasyBannerAd> {
     }
     setState(() {});
 
-    if (!EasyAds.isInitialized) {
-      _fail(generation, notInitializedError());
+    final blocked = await EasyAds.prepareRequest();
+    if (!mounted || generation != _generation) {
+      return;
+    }
+    if (blocked != null) {
+      _fail(generation, blocked);
       return;
     }
 
