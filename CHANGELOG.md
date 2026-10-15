@@ -11,3 +11,7 @@
 * Banner and native ads accept a `loading` widget so an app can supply its own shimmer.
 * Documents the built-in loading skeleton and a copy-paste custom shimmer.
 * Gathers European consent before ad requests and blocks ads until consent allows them.
+* Documents the settings entry that reopens ad privacy options after consent.
+* Matches each banner and native skeleton to that format, including the red Ad label.
+* Adds app open ads, and a 10 second load timeout for interstitial and app open.
+* Documents git install, the callback list, app open, and which formats time out.

@@ -31,7 +31,7 @@ String? resolveFacebookPlacementId({
   required bool testMode,
 }) {
   final trimmed = placementId?.trim() ?? '';
-  if (trimmed.isEmpty) {
+  if (trimmed.isEmpty || format == EasyAdFormat.appOpen) {
     return null;
   }
   if (!testMode || trimmed.contains('#')) {

@@ -6,6 +6,9 @@ enum EasyAdFormat {
   /// A full-screen ad at a natural break.
   interstitial,
 
+  /// A full-screen ad when the app comes to the foreground.
+  appOpen,
+
   /// A full-screen ad that grants a reward when completed.
   rewarded,
 

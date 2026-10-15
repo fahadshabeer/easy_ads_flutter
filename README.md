@@ -17,6 +17,7 @@ These versions live in `pubspec.yaml`, `android/build.gradle.kts`, and `ios/easy
 
 * Banner
 * Interstitial
+* App open, AdMob only
 * Rewarded
 * Rewarded interstitial
 * Native, using each network's built-in template
@@ -27,9 +28,19 @@ Every ad has `onLoading`, `onLoaded`, and `onError`.
 * `onLoaded` runs when one network fills, and tells you which network it was.
 * `onError` runs only when every available network has failed. It does not run when the first network fails and the second one is still loading.
 
-Full-screen ads also have `onClosed`. Rewarded ads and rewarded interstitials also have `onReward`.
+| Callback | Banner | Native | Interstitial | App open | Rewarded | Rewarded interstitial |
+|---|---|---|---|---|---|---|
+| `onLoading` | yes | yes | yes | yes | yes | yes |
+| `onLoaded` | yes | yes | yes | yes | yes | yes |
+| `onError` | yes | yes | yes | yes | yes | yes |
+| `onClosed` | | | yes | yes | yes | yes |
+| `onReward` | | | | | yes | yes |
+| `onTimeout` | | | yes | yes | | |
+| `loading` widget | yes | yes | | | | |
 
-Banners and native ads load themselves when the widget is on screen. Interstitials, rewarded ads, and rewarded interstitials do not. You preload those, keep the object, and call `show()` later. See [Preload full-screen ads](#7-preload-full-screen-ads).
+`onTimeout` belongs only to interstitial and app open. The default wait is 10 seconds. When it runs, `onLoaded` and `onError` do not run for that attempt, and a late response is discarded. Banner and native have no timeout. Their widget stays, with its skeleton, until the ad fills or every network fails. On total failure the widget collapses.
+
+Banners and native ads load themselves when the widget is on screen. Interstitials, app open ads, rewarded ads, and rewarded interstitials do not. You preload those, keep the object, and call `show()` later. See [Preload full-screen ads](#7-preload-full-screen-ads).
 
 ## How fallback works
 
@@ -37,7 +48,7 @@ You pick one priority when the SDK starts: AdMob first, or Facebook first.
 
 The SDK asks the first network. If that ad loads, the other network is never contacted. If the first network fails, the SDK immediately asks the second network and shows that ad instead. If the second network is not configured, or it also fails, you get `onError`.
 
-Facebook is skipped entirely when you do not pass `FacebookOptions`, or when Facebook cannot initialize. AdMob is always required.
+Facebook is skipped entirely when you do not pass `FacebookOptions`, or when Facebook cannot initialize. AdMob is always required. App open has no Meta format, so that ad is always AdMob only.
 
 ## Requirements
 
@@ -53,19 +64,39 @@ The AdMob app id, and the Facebook app id when you use Facebook, are different f
 
 ## 1. Add the package
 
+For an app in another folder, depend on the GitHub repo. The package name stays `easy_ads_sdk`. The repo name is `easy_ads_flutter`.
+
+```yaml
+dependencies:
+  easy_ads_sdk:
+    git:
+      url: https://github.com/fahadshabeer/easy_ads_flutter.git
+      ref: main
+```
+
+`ref: main` means the `main` branch. `flutter pub get` does not fetch a new commit every time. The first get writes the exact commit into `pubspec.lock`, and later gets use that commit. The `version` in this package does not choose the commit.
+
+To take the newest commit on `main`:
+
+```bash
+flutter pub upgrade easy_ads_sdk
+```
+
+The repo is private. `pub get` works on a machine that is already logged into the GitHub account that can read it.
+
+While you are developing the plugin itself, a path dependency is enough:
+
 ```yaml
 dependencies:
   easy_ads_sdk:
     path: ../easy_ads_sdk
 ```
 
-Use a pub.dev version constraint here after the package is published. Until then, point `path` at the package directory.
-
 ```bash
 flutter pub get
 ```
 
-You do not also add `google_mobile_ads`. This package already depends on it.
+You do not also add `google_mobile_ads`. This package already depends on it. Use a pub.dev version constraint here after the package is published.
 
 ## 2. Android setup
 
@@ -300,23 +331,28 @@ In AdMob, open **Privacy & messaging** and publish a **GDPR** message for this a
 
 The same startup also covers a published US state privacy message. You do not add a second call.
 
-### What the app still adds
+### Ad privacy options
 
-Put a privacy entry point on a settings screen when `EasyAds.isPrivacyOptionsRequired` is true. Google requires that entry point so a European user can change the choice later.
+A user who already answered the consent form must be able to change that answer later. Google requires a settings entry for that, and only for people the consent SDK marks with `EasyAds.isPrivacyOptionsRequired`. That is true for a European user who has seen the form. It stays false for everyone else, so those users never see the row.
 
 ```dart
 if (EasyAds.isPrivacyOptionsRequired)
   ListTile(
-    title: const Text('Privacy options'),
+    title: const Text('Ad privacy options'),
     onTap: () async {
       await EasyAds.showPrivacyOptionsForm();
+      if (EasyAds.canRequestAds) {
+        // Consent still allows ads. Preload the next one if you need it.
+      }
     },
   )
 ```
 
-After that form closes, read `EasyAds.canRequestAds` again before you load another ad. A refusal blocks every format. The SDK does not request a network that the user has not allowed.
+The tap opens the same Google form. The user can allow ads, allow limited ads, or withdraw consent. When the form closes, `EasyAds.canRequestAds` matches the new choice. A withdrawal blocks every later request. An ad that is already loaded stays loaded; the next `load()` is what follows the new choice.
 
-On iOS, request App Tracking Transparency before `initialize`, as shown above. The tracking prompt and the European consent form are separate. Show the tracking prompt first.
+Call `showPrivacyOptionsForm()` only when `isPrivacyOptionsRequired` is true. Calling it otherwise throws.
+
+This row does not open Apple's tracking prompt. That system dialog can appear only once, from `EasyAds.requestIosTrackingAuthorization`, and it must run before `initialize`. After the user has answered it, they change tracking in the iPhone Settings app, under Privacy & Security, then Tracking.
 
 Users under the age of consent must not see the form:
 
@@ -395,16 +431,16 @@ Changing the ad unit id or the Facebook placement id sends a new request.
 
 ## Loading placeholder
 
-Banner and native ads reserve their box as soon as the widget is built. Until an ad fills, that box shows the built-in skeleton: gray blocks in the shape of that format, and a red **Ad** label in the top-left corner.
+Banner and native ads reserve their box as soon as the widget is built. Until an ad fills, that box shows a skeleton of the same size and the same shape as that format. Every skeleton has a red **Ad** label, outlined so it stays readable. The label is small on the 50-tall banner and larger on the other formats. A light band moves across the blocks. The blocks themselves stay in the shape of the ad.
 
 | Format | What the skeleton looks like | Box size |
 |---|---|---|
-| `EasyBannerSize.banner` | Image block and two text lines | 50 tall |
-| `EasyBannerSize.large` | Image, text, and a button | 100 tall, or 90 when Meta fills |
-| `EasyBannerSize.mediumRectangle` | Large image, text, and a button | 250 tall |
+| `EasyBannerSize.banner` | Thumbnail, headline, and advertiser line | 50 tall |
+| `EasyBannerSize.large` | Image, headline, description, and a button | 100 tall, or 90 when Meta fills |
+| `EasyBannerSize.mediumRectangle` | Large image, headline, description, and a button | 250 tall |
 | Native | Icon, title, media, body, and a call-to-action | The `height` you pass, 320 by default |
 
-When the ad loads, it replaces the skeleton in the same box, so the screen does not jump. If every network fails, the box collapses and the skeleton is removed.
+When the ad loads, it replaces the skeleton in the same box, so the screen does not jump. If every network fails, the box collapses and the skeleton is removed. These widgets do not time out. A slow banner or native ad keeps its skeleton until it fills or fails.
 
 ### Your own shimmer
 
@@ -461,7 +497,9 @@ EasyNativeAd(
 
 ## 7. Preload full-screen ads
 
-Interstitials, rewarded ads, and rewarded interstitials share this behavior. You create an object, call `load()`, keep that object, and call `show()` when you want the ad on screen. Banners and native ads do not work this way. Those widgets request an ad when they are built.
+Interstitials, app open ads, rewarded ads, and rewarded interstitials share this behavior. You create an object, call `load()`, keep that object, and call `show()` when you want the ad on screen. Banners and native ads do not work this way. Those widgets request an ad when they are built.
+
+Interstitial and app open loads stop after 10 seconds unless you pass another `timeout`. A splash slot should keep that default and leave the screen from `onTimeout`. A slot you preload for later, such as a download button, can pass `timeout: null` so it waits for the network. Rewarded formats have no timeout.
 
 ### One object holds one ad
 
@@ -561,7 +599,12 @@ void createInterstitial() {
     onLoading: () {},
     onLoaded: (network) {},
     onError: (error) {},
+    onTimeout: () {
+      // Still not loaded. Leave the splash. onLoaded and onError
+      // will not run for this attempt.
+    },
     onClosed: () => interstitial.load(),
+    timeout: const Duration(seconds: 10),
   );
 }
 
@@ -575,6 +618,39 @@ Future<void> showInterstitial() async {
 ```
 
 `load()` returns `true` when this object already has an ad, and in that case it does not request again. `show()` throws `StateError` if you call it before a load has filled. After `onClosed`, call `load()` before the next `show()`. Call `dispose()` when you will never show this object again.
+
+`timeout` defaults to 10 seconds. Pass another duration, such as 8 seconds, when the splash should wait less. Pass `timeout: null` on a preloaded slot that should wait for the network. `await load()` returns `false` on timeout, and only `onTimeout` runs. A response that arrives later is discarded, so that attempt cannot load and then sit unshown.
+
+## App open
+
+AdMob only. There is no `facebookPlacementId`. The demo unit is `EasyTestIds.appOpen`.
+
+Use one object on the splash screen. `onLoaded` shows the ad. `onTimeout` and `onError` both mean the splash should continue, and they do not both run for the same attempt. `onClosed` preloads the next one. The default `timeout` is 10 seconds. AdMob stops serving an app open ad that has been sitting for about four hours. If `show()` fails, call `load()` again.
+
+```dart
+late final EasyAppOpenAd appOpen;
+
+void createAppOpen() {
+  appOpen = EasyAppOpenAd(
+    admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/oooooooooo',
+    onLoading: () {},
+    onLoaded: (network) async {
+      await appOpen.show();
+    },
+    onError: (error) {
+      leaveSplash();
+    },
+    onTimeout: leaveSplash,
+    onClosed: () => appOpen.load(),
+  );
+}
+
+void leaveSplash() {
+  // Open the home screen. Do not call show().
+}
+
+Future<void> openApp() => appOpen.load();
+```
 
 ## 9. Rewarded
 
@@ -651,11 +727,11 @@ onError: (error) {
 
 ## Placement ids must match the format
 
-Create one AdMob ad unit per format, and one Facebook placement per format. A banner id cannot be used as an interstitial id. The request fails, and the SDK moves on to the other network.
+Create one AdMob ad unit per format, and one Facebook placement per format. A banner id cannot be used as an interstitial id. The request fails, and the SDK moves on to the other network. App open is the exception: it has an AdMob unit and no Facebook placement.
 
 ## Example app
 
-`example/` is a working app wired to Google's demo ad units and Meta's public sample placement ids. It is already in test mode.
+`example/` is a working app wired to Google's demo ad units and Meta's public sample placement ids. It is already in test mode. The screen loads a banner and a native ad on its own, and it has buttons for interstitial, app open, rewarded, and rewarded interstitial. Interstitial and app open use the 10 second timeout. The status line names the callback that ran.
 
 ```bash
 cd example

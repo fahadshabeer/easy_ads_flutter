@@ -46,7 +46,16 @@ class _ExampleHomeState extends State<ExampleHome> {
     onLoading: () => _setStatus('Interstitial loading'),
     onLoaded: (network) => _setStatus('Interstitial loaded from ${network.name}'),
     onError: (error) => _setStatus('Interstitial error: ${error.message}'),
+    onTimeout: () => _setStatus('Interstitial timed out'),
     onClosed: () => _setStatus('Interstitial closed'),
+  );
+  late final EasyAppOpenAd _appOpen = EasyAppOpenAd(
+    admobAdUnitId: EasyTestIds.appOpen,
+    onLoading: () => _setStatus('App open loading'),
+    onLoaded: (network) => _setStatus('App open loaded from ${network.name}'),
+    onError: (error) => _setStatus('App open error: ${error.message}'),
+    onTimeout: () => _setStatus('App open timed out'),
+    onClosed: () => _setStatus('App open closed'),
   );
   late final EasyRewardedAd _rewarded = EasyRewardedAd(
     admobAdUnitId: EasyTestIds.rewarded,
@@ -102,6 +111,7 @@ class _ExampleHomeState extends State<ExampleHome> {
   @override
   void dispose() {
     _interstitial.dispose();
+    _appOpen.dispose();
     _rewarded.dispose();
     _rewardedInterstitial.dispose();
     super.dispose();
@@ -142,6 +152,20 @@ class _ExampleHomeState extends State<ExampleHome> {
             onError: (error) => _setStatus('Native error: ${error.message}'),
           ),
           const SizedBox(height: 16),
+          FilledButton(
+            onPressed: _appOpen.load,
+            child: const Text('Load app open'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              try {
+                await _appOpen.show();
+              } catch (error) {
+                _setStatus('$error');
+              }
+            },
+            child: const Text('Show app open'),
+          ),
           FilledButton(
             onPressed: _interstitial.load,
             child: const Text('Load interstitial'),

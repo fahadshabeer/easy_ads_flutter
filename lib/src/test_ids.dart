@@ -16,6 +16,7 @@ class EasyTestIds {
 
   static const _androidBanner = 'ca-app-pub-3940256099942544/6300978111';
   static const _androidInterstitial = 'ca-app-pub-3940256099942544/1033173712';
+  static const _androidAppOpen = 'ca-app-pub-3940256099942544/9257395921';
   static const _androidRewarded = 'ca-app-pub-3940256099942544/5224354917';
   static const _androidRewardedInterstitial =
       'ca-app-pub-3940256099942544/5354046379';
@@ -23,6 +24,7 @@ class EasyTestIds {
 
   static const _iosBanner = 'ca-app-pub-3940256099942544/2934735716';
   static const _iosInterstitial = 'ca-app-pub-3940256099942544/4411468910';
+  static const _iosAppOpen = 'ca-app-pub-3940256099942544/5575463023';
   static const _iosRewarded = 'ca-app-pub-3940256099942544/1712485313';
   static const _iosRewardedInterstitial =
       'ca-app-pub-3940256099942544/6978759866';
@@ -55,6 +57,7 @@ class EasyTestIds {
       EasyAdFormat.banner => ios ? _iosBanner : _androidBanner,
       EasyAdFormat.interstitial =>
         ios ? _iosInterstitial : _androidInterstitial,
+      EasyAdFormat.appOpen => ios ? _iosAppOpen : _androidAppOpen,
       EasyAdFormat.rewarded => ios ? _iosRewarded : _androidRewarded,
       EasyAdFormat.rewardedInterstitial =>
         ios ? _iosRewardedInterstitial : _androidRewardedInterstitial,
@@ -67,6 +70,9 @@ class EasyTestIds {
 
   /// Demo interstitial ad unit for the current platform.
   static String get interstitial => admob(EasyAdFormat.interstitial);
+
+  /// Demo app open ad unit for the current platform.
+  static String get appOpen => admob(EasyAdFormat.appOpen);
 
   /// Demo rewarded ad unit for the current platform.
   static String get rewarded => admob(EasyAdFormat.rewarded);

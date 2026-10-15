@@ -14,6 +14,10 @@ import 'fullscreen_ad.dart';
 /// A full-screen interstitial.
 ///
 /// Load it before the moment you want to show it, then call [show].
+///
+/// [onTimeout] runs when the load is still unfinished after [timeout].
+/// The default is 10 seconds. [onLoaded] and [onError] do not run for
+/// that attempt. Pass `timeout: null` to wait for the network.
 class EasyInterstitialAd extends FullScreenAdBase {
   /// Creates an interstitial.
   EasyInterstitialAd({
@@ -23,6 +27,8 @@ class EasyInterstitialAd extends FullScreenAdBase {
     super.onLoaded,
     super.onError,
     super.onClosed,
+    super.onTimeout,
+    super.timeout = const Duration(seconds: 10),
   }) : super(format: EasyAdFormat.interstitial);
 
   InterstitialAd? _ad;

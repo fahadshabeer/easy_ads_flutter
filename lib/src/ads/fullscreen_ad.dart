@@ -7,6 +7,7 @@ import '../ad_format.dart';
 import '../ad_network.dart';
 import '../easy_ads.dart';
 import '../facebook/facebook_bridge.dart';
+import '../internal/load_gate.dart';
 import '../internal/waterfall.dart';
 import '../reward.dart';
 
@@ -22,6 +23,8 @@ abstract class FullScreenAdBase {
     this.onError,
     this.onClosed,
     this.onReward,
+    this.onTimeout,
+    this.timeout,
   });
 
   /// AdMob ad unit id.
@@ -48,10 +51,25 @@ abstract class FullScreenAdBase {
   /// Called when the user earns a reward. Unused by interstitials.
   final void Function(EasyReward reward)? onReward;
 
+  /// Called when [timeout] elapses before a network fills.
+  ///
+  /// [onLoaded] and [onError] do not run for that load after this.
+  /// Null on formats that wait for the network.
+  final VoidCallback? onTimeout;
+
+  /// How long [load] waits before [onTimeout].
+  ///
+  /// Null waits until the network answers. Interstitial and app open
+  /// default this to 10 seconds.
+  final Duration? timeout;
+
   EasyAdNetwork? _loadedNetwork;
   Future<bool>? _loadFuture;
   bool _disposed = false;
   bool _showing = false;
+  int _generation = 0;
+  Timer? _timeoutTimer;
+  AdLoadGate? _gate;
   String? _facebookId;
   StreamSubscription<FacebookEvent>? _facebookSub;
 
@@ -73,13 +91,29 @@ abstract class FullScreenAdBase {
     if (existing != null) {
       return existing;
     }
-    final future = _load();
-    _loadFuture = future;
-    return future.whenComplete(() {
-      if (identical(_loadFuture, future)) {
-        _loadFuture = null;
+    final completer = Completer<bool>();
+    final generation = ++_generation;
+    final gate = AdLoadGate();
+    _gate = gate;
+    _loadFuture = completer.future;
+    unawaited(() async {
+      try {
+        final loaded = await _load(generation, gate, completer);
+        if (!completer.isCompleted) {
+          completer.complete(loaded);
+        }
+      } catch (error, stack) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stack);
+        }
+      } finally {
+        _timeoutTimer?.cancel();
+        if (identical(_loadFuture, completer.future)) {
+          _loadFuture = null;
+        }
       }
-    });
+    }());
+    return completer.future;
   }
 
   /// Shows the loaded ad.
@@ -116,6 +150,10 @@ abstract class FullScreenAdBase {
       return;
     }
     _disposed = true;
+    _generation++;
+    _timeoutTimer?.cancel();
+    _timeoutTimer = null;
+    _gate?.close();
     _loadedNetwork = null;
     _showing = false;
     await discardNetwork(EasyAdNetwork.admob);
@@ -176,7 +214,7 @@ abstract class FullScreenAdBase {
   /// Called by AdMob when the full-screen ad closes.
   @protected
   void notifyClosed() {
-    if (_disposed) {
+    if (_disposed || (_gate?.timedOut ?? false)) {
       return;
     }
     _showing = false;
@@ -188,7 +226,7 @@ abstract class FullScreenAdBase {
   /// Called by AdMob when show() fails after a successful load.
   @protected
   void notifyShowFailed(String message) {
-    if (_disposed) {
+    if (_disposed || (_gate?.timedOut ?? false)) {
       return;
     }
     _showing = false;
@@ -205,25 +243,59 @@ abstract class FullScreenAdBase {
     onReward?.call(reward);
   }
 
-  Future<bool> _load() async {
+  void _armTimeout(int generation, AdLoadGate gate, Completer<bool> done) {
+    _timeoutTimer?.cancel();
+    final limit = timeout;
+    if (limit == null) {
+      return;
+    }
+    _timeoutTimer = Timer(limit, () {
+      if (_disposed || generation != _generation || !gate.claimTimeout()) {
+        return;
+      }
+      _timeoutTimer = null;
+      if (!done.isCompleted) {
+        done.complete(false);
+      }
+      if (identical(_loadFuture, done.future)) {
+        _loadFuture = null;
+      }
+      onTimeout?.call();
+      unawaited(discardNetwork(EasyAdNetwork.admob));
+      unawaited(discardNetwork(EasyAdNetwork.facebook));
+    });
+  }
+
+  Future<bool> _load(
+    int generation,
+    AdLoadGate gate,
+    Completer<bool> done,
+  ) async {
     final blocked = await EasyAds.prepareRequest();
-    if (_disposed) {
+    if (_disposed || generation != _generation || gate.timedOut) {
       return false;
     }
     if (blocked != null) {
-      onError?.call(blocked);
+      if (gate.claimResult()) {
+        onError?.call(blocked);
+      }
+      return false;
+    }
+    _armTimeout(generation, gate, done);
+    if (gate.timedOut) {
       return false;
     }
     onLoading?.call();
     final failures = <EasyAdFailure>[];
     final network = await runWaterfall(
       facebookPlacementId: facebookPlacementId,
-      isCancelled: () => _disposed,
+      isCancelled: () => _disposed || gate.timedOut || generation != _generation,
       failures: failures,
       load: loadNetwork,
       discard: discardNetwork,
     );
-    if (_disposed) {
+    _timeoutTimer?.cancel();
+    if (_disposed || generation != _generation || !gate.claimResult()) {
       return false;
     }
     if (network == null) {
@@ -236,7 +308,7 @@ abstract class FullScreenAdBase {
   }
 
   void _onFacebookEvent(FacebookEvent event) {
-    if (_disposed || event.id != _facebookId) {
+    if (_disposed || (_gate?.timedOut ?? false) || event.id != _facebookId) {
       return;
     }
     switch (event.type) {

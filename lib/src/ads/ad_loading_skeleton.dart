@@ -90,49 +90,75 @@ class _AdLoadingSkeletonState extends State<AdLoadingSkeleton>
 
   @override
   Widget build(BuildContext context) {
+    final compact = widget.kind == AdSkeletonKind.banner;
     return Semantics(
       label: 'Advertisement loading',
       container: true,
       child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF2F3F5),
-            border: Border.all(color: const Color(0xFFE3E5E8)),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(child: _shimmerBody()),
-              const Positioned(top: 4, left: 4, child: _AdMark()),
-            ],
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(compact ? 2 : 8),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              color: Color(0xFFF4F5F7),
+              border: Border.fromBorderSide(
+                BorderSide(color: Color(0xFFE1E4E8)),
+              ),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Stack(
+                    children: [
+                      _layout(),
+                      Positioned.fill(child: _shimmerWash()),
+                    ],
+                  ),
+                ),
+                _badge(compact),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _shimmerBody() {
+  Widget _badge(bool compact) {
+    final mark = _AdMark(compact: compact);
+    if (compact) {
+      return Positioned(
+        left: 6,
+        top: 0,
+        bottom: 0,
+        child: Center(child: mark),
+      );
+    }
+    if (widget.kind == AdSkeletonKind.native) {
+      return Positioned(top: 20, left: 12, child: mark);
+    }
+    return Positioned(top: 8, left: 8, child: mark);
+  }
+
+  /// A light band moves across the bones. The bones keep their shape.
+  Widget _shimmerWash() {
     return AnimatedBuilder(
       animation: _shimmer,
-      builder: (context, child) {
-        return ShaderMask(
-          blendMode: BlendMode.srcATop,
-          shaderCallback: (bounds) {
-            final travel = bounds.width * 1.6;
-            final dx = (_shimmer.value * travel * 2) - travel;
-            return LinearGradient(
+      builder: (context, _) {
+        final t = _shimmer.value;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment(-1.4 + (t * 2.8), -0.15),
+              end: Alignment(-0.7 + (t * 2.8), 0.15),
               colors: const [
-                _bone,
-                Color(0xFFF7F8F9),
-                _bone,
+                Color(0x00FFFFFF),
+                Color(0xB3FFFFFF),
+                Color(0x00FFFFFF),
               ],
-              stops: const [0.25, 0.5, 0.75],
-              transform: _SlideGradient(dx),
-            ).createShader(bounds);
-          },
-          child: child,
+            ),
+          ),
         );
       },
-      child: _layout(),
     );
   }
 
@@ -146,35 +172,31 @@ class _AdLoadingSkeletonState extends State<AdLoadingSkeleton>
   }
 }
 
-class _SlideGradient extends GradientTransform {
-  const _SlideGradient(this.dx);
-
-  final double dx;
-
-  @override
-  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) {
-    return Matrix4.translationValues(dx, 0, 0);
-  }
-}
-
 class _AdMark extends StatelessWidget {
-  const _AdMark();
+  const _AdMark({required this.compact});
+
+  /// Smaller label for the 50-tall banner, where a large badge would cover the row.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    return const DecoratedBox(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: Color(0xFFFFFFFF),
-        borderRadius: BorderRadius.all(Radius.circular(2)),
+        color: const Color(0xFFFFFFFF),
+        borderRadius: const BorderRadius.all(Radius.circular(2)),
+        border: Border.all(color: const Color(0xFFD32F2F)),
       ),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 3 : 4,
+          vertical: compact ? 0 : 1,
+        ),
         child: Text(
           'Ad',
           textScaler: TextScaler.noScaling,
           style: TextStyle(
-            color: Color(0xFFD32F2F),
-            fontSize: 10,
+            color: const Color(0xFFD32F2F),
+            fontSize: compact ? 9 : 11,
             fontWeight: FontWeight.w700,
             height: 1.1,
           ),
@@ -185,17 +207,35 @@ class _AdMark extends StatelessWidget {
 }
 
 class _Bone extends StatelessWidget {
-  const _Bone({this.width, this.height, this.radius = 4, this.expand = false});
+  const _Bone({
+    this.width,
+    this.height,
+    this.radius = 4,
+    this.expand = false,
+    this.media = false,
+    this.button = false,
+  });
 
   final double? width;
   final double? height;
   final double radius;
   final bool expand;
 
+  /// Darker block, used where the ad shows an image.
+  final bool media;
+
+  /// Darker block, used where the ad shows a call-to-action.
+  final bool button;
+
   @override
   Widget build(BuildContext context) {
+    final color = button
+        ? const Color(0xFFC5CAD1)
+        : media
+        ? const Color(0xFFD5D9DE)
+        : _AdLoadingSkeletonState._bone;
     final decoration = BoxDecoration(
-      color: _AdLoadingSkeletonState._bone,
+      color: color,
       borderRadius: BorderRadius.circular(radius),
     );
     if (expand) {
@@ -237,7 +277,7 @@ class _Lines extends StatelessWidget {
           const SizedBox(height: 8),
           const Align(
             alignment: Alignment.centerLeft,
-            child: _Bone(width: 88, height: 26, radius: 6),
+            child: _Bone(width: 96, height: 26, radius: 6, button: true),
           ),
         ],
       ],
@@ -251,12 +291,12 @@ class _BannerBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: EdgeInsets.only(left: 34, right: 10),
       child: Row(
         children: [
-          _Bone(width: 32, height: 32, radius: 4),
-          SizedBox(width: 10),
-          Expanded(child: _Lines(secondWidth: 0.55)),
+          _Bone(width: 32, height: 32, radius: 4, media: true),
+          SizedBox(width: 8),
+          Expanded(child: _Lines(secondWidth: 0.62)),
         ],
       ),
     );
@@ -274,10 +314,10 @@ class _LargeBannerBody extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: 1,
-            child: _Bone(expand: true, radius: 6),
+            child: _Bone(expand: true, radius: 6, media: true),
           ),
           SizedBox(width: 10),
-          Expanded(child: _Lines(secondWidth: 0.62, button: true)),
+          Expanded(child: _Lines(secondWidth: 0.7, button: true)),
         ],
       ),
     );
@@ -294,19 +334,19 @@ class _RectangleBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: _Bone(expand: true, radius: 6)),
+          Expanded(child: _Bone(expand: true, radius: 6, media: true)),
           SizedBox(height: 10),
           _Bone(height: 10),
           SizedBox(height: 6),
           Align(
             alignment: Alignment.centerLeft,
             child: FractionallySizedBox(
-              widthFactor: 0.7,
-              child: _Bone(height: 10),
+              widthFactor: 0.72,
+              child: _Bone(height: 8),
             ),
           ),
           SizedBox(height: 10),
-          _Bone(height: 32, radius: 6),
+          _Bone(height: 32, radius: 6, button: true),
         ],
       ),
     );
@@ -327,14 +367,15 @@ class _NativeBody extends StatelessWidget {
             height: 40,
             child: Row(
               children: [
-                _Bone(width: 40, height: 40, radius: 8),
+                SizedBox(width: 30),
+                _Bone(width: 40, height: 40, radius: 8, media: true),
                 SizedBox(width: 10),
                 Expanded(child: _Lines(secondWidth: 0.42)),
               ],
             ),
           ),
           SizedBox(height: 10),
-          Expanded(child: _Bone(expand: true, radius: 6)),
+          Expanded(child: _Bone(expand: true, radius: 6, media: true)),
           SizedBox(height: 10),
           _Bone(height: 8),
           SizedBox(height: 6),
@@ -346,7 +387,7 @@ class _NativeBody extends StatelessWidget {
             ),
           ),
           SizedBox(height: 10),
-          _Bone(height: 36, radius: 8),
+          _Bone(height: 36, radius: 8, button: true),
         ],
       ),
     );
