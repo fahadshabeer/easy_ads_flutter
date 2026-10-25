@@ -13,7 +13,9 @@ import 'internal/waterfall.dart';
 /// Optional Facebook setup.
 ///
 /// Pass this to [EasyAds.initialize] only when the app has completed the
-/// Facebook steps in the README. Leave it out and every ad uses AdMob only.
+/// direct Facebook steps in the README. Leave it out to skip direct Meta
+/// placements. AdMob can still fill from Meta when Meta is a bidding source
+/// on the ad unit.
 class FacebookOptions {
   /// Creates Facebook setup.
   const FacebookOptions({this.iosAdvertiserTrackingEnabled = false});
@@ -23,6 +25,8 @@ class FacebookOptions {
   /// This is applied only after the user has allowed App Tracking
   /// Transparency. Call [EasyAds.requestIosTrackingAuthorization] first,
   /// then pass `true` here when the status is [IosTrackingStatus.authorized].
+  /// The same flag is applied to Meta bidding before AdMob starts. On iOS 17
+  /// and later, Meta reads the system tracking status itself.
   final bool iosAdvertiserTrackingEnabled;
 }
 
@@ -92,8 +96,10 @@ class EasyAds {
   /// the app before this future can recover, so complete the README setup
   /// first.
   ///
-  /// Facebook is optional. If [facebook] is omitted, or Facebook cannot
-  /// initialize, ads continue with AdMob only.
+  /// Direct Facebook placements are optional. If [facebook] is omitted, or
+  /// Facebook cannot initialize, those placements are skipped. AdMob requests
+  /// continue, and they include Meta inventory when Meta is a bidding source
+  /// on the ad unit.
   ///
   /// A second call waits for the first one and does not change the original
   /// priority or test mode.
@@ -362,6 +368,15 @@ class EasyAds {
       return;
     }
     _networksStarted = true;
+    // Meta reads this flag when it builds the bidding token inside
+    // MobileAds.initialize. On iOS 17 and later the flag is unused and the
+    // Audience Network SDK reads App Tracking Transparency directly.
+    // Omitting FacebookOptions still opts in when the system allows tracking,
+    // so bidding does not depend on a direct Meta placement.
+    await FacebookBridge.prepareForMediation(
+      advertiserTrackingEnabled:
+          _facebook?.iosAdvertiserTrackingEnabled ?? true,
+    );
     await MobileAds.instance.initialize();
 
     final facebook = _facebook;

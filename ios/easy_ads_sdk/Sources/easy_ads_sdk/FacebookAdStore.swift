@@ -33,6 +33,11 @@ public class EasyAdsSdkPlugin: NSObject, FlutterPlugin {
     switch call.method {
     case "ping":
       result("ok")
+    case "prepareForMediation":
+      store.prepareForMediation(
+        advertiserTrackingEnabled: args["advertiserTrackingEnabled"] as? Bool ?? false,
+        result: result
+      )
     case "initialize":
       store.initialize(
         advertiserTrackingEnabled: args["advertiserTrackingEnabled"] as? Bool ?? false,
@@ -122,6 +127,13 @@ final class FacebookAdStore: NSObject, FlutterStreamHandler {
 
   func nativeView(id: String) -> UIView? {
     natives[id]
+  }
+
+  func prepareForMediation(advertiserTrackingEnabled: Bool, result: @escaping FlutterResult) {
+    FBAdSettings.setAdvertiserTrackingEnabled(
+      advertiserTrackingEnabled && Self.trackingAuthorized
+    )
+    result(nil)
   }
 
   func initialize(advertiserTrackingEnabled: Bool, result: @escaping FlutterResult) {

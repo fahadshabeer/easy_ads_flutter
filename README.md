@@ -2,7 +2,9 @@
 
 One Flutter API for **Google AdMob** and **Meta Audience Network**.
 
-You add this package the same way you add any other package. The Facebook native SDK is already inside it. You do not write Android XML or Swift for ads. AdMob native ads use Google's built-in medium template. Facebook native ads use the template shipped with this package.
+You add this package the same way you add any other package. The Facebook native SDK is already inside it, and so is AdMob's Meta Audience Network bidding adapter. You do not write Android XML or Swift for ads. AdMob native ads use Google's built-in medium template. Facebook native ads use the template shipped with this package.
+
+Meta mediation is already integrated. An app that already shows AdMob ads through this package does not add a new Dart API and does not add `gma_mediation_meta`. After the steps in [Meta mediation is already integrated](#meta-mediation-is-already-integrated), AdMob can fill those same ad units from Meta inventory.
 
 | | Version |
 |---|---|
@@ -10,8 +12,11 @@ You add this package the same way you add any other package. The Facebook native
 | Google Mobile Ads Android SDK | 25.4.0 |
 | Google Mobile Ads iOS SDK | 13.7.0 |
 | Meta Audience Network, Android and iOS | 6.22.0 |
+| `gma_mediation_meta` | 1.7.1 |
+| AdMob Meta adapter, Android | 6.22.0.1 |
+| AdMob Meta adapter, iOS | 6.22.0.0 |
 
-These versions live in `pubspec.yaml`, `android/build.gradle.kts`, and `ios/easy_ads_sdk/Package.swift`. `EasyAdsVersions` exposes the same numbers from Dart.
+These versions live in `pubspec.yaml`, `android/build.gradle.kts`, and `ios/easy_ads_sdk/Package.swift`. The Meta bidding adapter comes from `gma_mediation_meta`. `EasyAdsVersions` exposes the same numbers from Dart.
 
 ## What you get
 
@@ -48,7 +53,145 @@ You pick one priority when the SDK starts: AdMob first, or Facebook first.
 
 The SDK asks the first network. If that ad loads, the other network is never contacted. If the first network fails, the SDK immediately asks the second network and shows that ad instead. If the second network is not configured, or it also fails, you get `onError`.
 
-Facebook is skipped entirely when you do not pass `FacebookOptions`, or when Facebook cannot initialize. AdMob is always required. App open has no Meta format, so that ad is always AdMob only.
+Passing `FacebookOptions` turns on direct Meta placements. Leaving it out leaves those placements off. AdMob requests stay on either way, and those requests include Meta inventory when Meta Audience Network is a bidding source on the ad unit. See [Meta mediation is already integrated](#meta-mediation-is-already-integrated). App open has no Meta format, so that ad stays on AdMob inventory only.
+
+## Meta mediation is already integrated
+
+Meta Audience Network bidding is part of this package. `pubspec.yaml` depends on `gma_mediation_meta` 1.7.1, which links the AdMob adapter (Android `6.22.0.1`, iOS `6.22.0.0`) and uses the same Audience Network SDK (`6.22.0`) as the direct Meta placements. The adapter is registered with the app when you depend on `easy_ads_sdk`. There is no second package to add, and there is no new method to call.
+
+An AdMob request can then be filled by Meta inventory when Meta wins that auction. The placement id lives in the AdMob mediation group, not in Dart. `facebookPlacementId` and `FacebookOptions` are only for a direct Meta request, which is a separate call. Leave both out when Meta should compete inside AdMob only.
+
+`onLoaded` reports `EasyAdNetwork.admob` when the Google SDK returns the ad, including when the creative came from Meta. Open Ad Inspector to see that Meta won.
+
+Ship a new binary after you take this package update. A mediation group in AdMob has no Meta demand until that binary, with the adapter inside it, is installed.
+
+### Dart API you keep using
+
+Import one library:
+
+```dart
+import 'package:easy_ads_sdk/easy_ads_sdk.dart';
+```
+
+Start the SDK once. Omit `facebook` when the app has no direct Meta placements. Meta bidding still runs on the AdMob request.
+
+```dart
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await EasyAds.requestIosTrackingAuthorization();
+  final startup = EasyAds.initialize(
+    priority: EasyAdPriority.admob,
+    testMode: false, // true swaps in Google demo units and skips your mediation group
+  );
+  runApp(const MyApp());
+  await startup;
+}
+```
+
+`requestIosTrackingAuthorization` returns `IosTrackingStatus.notSupported` on Android and does not show a dialog. On iOS, call it before `initialize` when the app shows the tracking prompt. On iOS 17 and later, Meta reads that system status itself. On earlier iOS versions, this package sets Meta's advertiser tracking flag from that status before AdMob starts, including when `FacebookOptions` is omitted.
+
+Pass `FacebookOptions` only for direct Meta placements. `iosAdvertiserTrackingEnabled: true` is applied only after the user allows tracking, and the same value is used for Meta bidding:
+
+```dart
+final status = await EasyAds.requestIosTrackingAuthorization();
+await EasyAds.initialize(
+  priority: EasyAdPriority.admob,
+  facebook: FacebookOptions(
+    iosAdvertiserTrackingEnabled: status == IosTrackingStatus.authorized,
+  ),
+  testMode: false,
+);
+```
+
+These are the ad APIs. Each one takes the AdMob ad unit id that you mapped to a Meta placement in AdMob. Leave `facebookPlacementId` unset for mediation only.
+
+| API | Role with Meta bidding |
+|---|---|
+| `EasyAds.initialize` | Starts consent, then AdMob. The Meta adapter initializes from the AdMob bidding configuration. |
+| `EasyAds.requestIosTrackingAuthorization` | iOS tracking prompt. Call it before `initialize` when you show one. |
+| `EasyAds.canRequestAds` | `true` when consent allows a request. |
+| `EasyAds.isPrivacyOptionsRequired` | `true` when the app must show a settings entry that calls `EasyAds.showPrivacyOptionsForm`. |
+| `EasyBannerAd` | Banner. Loads when the widget is built. `size` is `EasyBannerSize.banner`, `large`, or `mediumRectangle`. |
+| `EasyNativeAd` | Native template. Loads when the widget is built. |
+| `EasyInterstitialAd` | Preload with `load()`, then `show()`. |
+| `EasyRewardedAd` | Preload with `load()`, grant the reward in `onReward`, then `show()`. |
+| `EasyRewardedInterstitialAd` | Same preload pattern as rewarded. |
+| `EasyAppOpenAd` | AdMob inventory only. Meta has no app open format, so mediation cannot fill this one from Meta. |
+| `EasyAdNetwork` | `admob` or `facebook`. A Meta-mediated creative is reported as `admob`. |
+| `EasyAdPriority` | `admob` or `facebook`. This orders the direct waterfall. It does not turn bidding off. |
+| `EasyAdsVersions` | `metaMediationFlutter`, `metaMediationAndroid`, `metaMediationIos`, and `facebookSdk`. |
+
+```dart
+EasyBannerAd(
+  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/bbbbbbbbbb',
+  size: EasyBannerSize.banner,
+  onLoading: () {},
+  onLoaded: (EasyAdNetwork network) {},
+  onError: (error) {},
+)
+
+final interstitial = EasyInterstitialAd(
+  admobAdUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/iiiiiiiiii',
+  onLoading: () {},
+  onLoaded: (network) {},
+  onError: (error) {},
+  onClosed: () => interstitial.load(),
+);
+await interstitial.load();
+if (interstitial.isLoaded) {
+  await interstitial.show();
+}
+```
+
+`testMode: true` replaces your ad unit with a Google demo ad unit. Demo ad units ignore your mediation group, so Meta does not bid. Use `testMode: false` and the real ad unit when you want Meta. Register the device as a test device in AdMob, and turn on test mode in Monetization Manager, before anyone taps those ads.
+
+In Ad Inspector, use single ad source testing on **Meta Audience Network (Bidding)**. A Meta failure is reported under `com.google.ads.mediation.facebook.FacebookMediationAdapter` on Android and `GADMediationAdapterFacebook` on iOS. Error 101 means the placement id AdMob sent is missing or wrong.
+
+### Setup in the app project
+
+The AdMob app id is still required. Sections [2. Android setup](#2-android-setup) and [3. iOS setup](#3-ios-setup) are the whole native project setup for an app that already uses this package. Meta bidding adds no Android dependency line and no iOS pod line.
+
+| In the app | Needed for Meta bidding |
+|---|---|
+| `easy_ads_sdk` in `pubspec.yaml` | Yes. This is the only ads dependency. |
+| `google_mobile_ads` or `gma_mediation_meta` in the app `pubspec.yaml` | No. This package already depends on both. |
+| AdMob app id in `AndroidManifest.xml` and `Info.plist` | Yes. Same value you already use for AdMob. |
+| Android `minSdk` 24, iOS deployment target 15 | Yes. |
+| `SKAdNetworkItems` from the iOS section, including `v9wttpbfk9.skadnetwork` and `n38lu8286q.skadnetwork` | Yes, on iOS. |
+| `NSUserTrackingUsageDescription` | Yes, on iOS, when you call `EasyAds.requestIosTrackingAuthorization`. |
+| Facebook app id and client token | Only when the app also passes `FacebookOptions` for direct Meta placements. Bidding alone does not use those keys. The placement id AdMob sends identifies the Meta property. |
+
+After `flutter pub upgrade easy_ads_sdk`, build and install the app again so the adapter is in the binary.
+
+### Setup in AdMob and Meta
+
+1. In [Meta Monetization Manager](https://business.facebook.com/pub/start), create the app property and choose **Google AdMob** as the mediation platform. Create one placement for each format you serve: banner, interstitial, rewarded, rewarded interstitial, and native. For a banner taller than 249 points, create a medium rectangle placement. App open has no Meta placement.
+2. In AdMob, open **Mediation**, add **Meta Audience Network** as a **bidding** source, and map each AdMob ad unit to the matching Meta placement id. Meta has been bidding-only since 2021, so add it as bidding.
+3. Copy the `app-ads.txt` lines Monetization Manager shows for this property onto your domain. Missing lines cut Meta demand.
+4. In AdMob **Privacy & messaging**, select Meta on the GDPR message and the US state message. This SDK already writes the consent string Meta reads through `EasyAds.initialize`. European and US-state fill waits on that published message. Details are in [European consent](#european-consent).
+
+### Android media cache
+
+Android 9 and later blocks cleartext traffic. Meta caches some media on the device through a local address, and a blocked cache can leave a blank creative after Meta has already filled. Bidding still starts without the file below. Add it when a Meta creative does not render.
+
+`android/app/src/main/res/xml/network_security_config.xml`:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
+```
+
+On `<application>` in `AndroidManifest.xml`:
+
+```xml
+android:networkSecurityConfig="@xml/network_security_config"
+```
+
+If the app already has a network security config, add the `127.0.0.1` domain to that file instead of replacing it.
 
 ## Requirements
 
@@ -96,7 +239,7 @@ dependencies:
 flutter pub get
 ```
 
-You do not also add `google_mobile_ads`. This package already depends on it. Use a pub.dev version constraint here after the package is published.
+You do not also add `google_mobile_ads` or `gma_mediation_meta`. This package already depends on both. Use a pub.dev version constraint here after the package is published.
 
 ## 2. Android setup
 
@@ -300,7 +443,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final startup = EasyAds.initialize(
     priority: EasyAdPriority.admob, // or EasyAdPriority.facebook
-    facebook: const FacebookOptions(), // omit this to skip Facebook
+    facebook: const FacebookOptions(), // omit this to skip direct Meta placements
     testMode: true, // false in production
   );
   runApp(const MyApp());
@@ -315,7 +458,7 @@ Call `runApp` before you await `initialize`. Startup asks for European consent f
 * AdMob requests use Google's demo ad units, even if you passed your real ad unit ids. Demo ads are safe to click.
 * A Facebook placement id that does not already contain `#` is prefixed with a Meta test creative. Rewarded ads use a video test creative. The other formats use an image test creative.
 
-Set `testMode` to `false` before you ship. A second call to `initialize` does not change the priority or the test mode chosen by the first call.
+Set `testMode` to `false` before you ship. With `testMode: true`, AdMob requests use Google's demo ad units, and those units ignore the Meta bidding source on your real ad unit. A second call to `initialize` does not change the priority or the test mode chosen by the first call. Meta bidding setup for an app that already calls this API is in [Meta mediation is already integrated](#meta-mediation-is-already-integrated).
 
 `EasyTestIds` holds Google's demo ad units and Meta's public sample placement ids, if you want to pass those ids yourself.
 

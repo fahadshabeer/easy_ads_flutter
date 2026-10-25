@@ -5,9 +5,9 @@
 Pod::Spec.new do |s|
   s.name             = 'easy_ads_sdk'
   s.version          = '0.0.1'
-  s.summary          = 'One Flutter API for AdMob and Meta Audience Network, with priority and automatic fallback.'
+  s.summary          = 'One Flutter API for AdMob and Meta Audience Network, with priority, automatic fallback, and Meta bidding inside AdMob.'
   s.description      = <<-DESC
-One Flutter API for AdMob and Meta Audience Network, with priority and automatic fallback.
+One Flutter API for AdMob and Meta Audience Network, with priority, automatic fallback, and Meta bidding inside AdMob.
                        DESC
   s.homepage         = 'http://example.com'
   s.license          = { :file => '../LICENSE' }

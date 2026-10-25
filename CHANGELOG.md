@@ -1,3 +1,11 @@
+## 0.1.1
+
+* Bundles the AdMob Meta Audience Network bidding adapter (`gma_mediation_meta` 1.7.1, Android adapter 6.22.0.1, iOS adapter 6.22.0.0).
+* An existing AdMob request can fill from Meta inventory after Meta is added as a bidding source on that ad unit. App call sites stay the same.
+* Direct Meta placements are unchanged.
+* Sets Meta's iOS advertiser-tracking flag before AdMob starts, including when `FacebookOptions` is omitted.
+* Documents the app setup and the existing Dart API for Meta bidding.
+
 ## 0.1.0
 
 * First release.

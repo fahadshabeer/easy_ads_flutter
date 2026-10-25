@@ -107,6 +107,29 @@ class FacebookBridge {
     return _controller.stream.where((event) => event.id == id).listen(onData);
   }
 
+  /// Sets Meta's iOS advertiser-tracking flag before AdMob starts.
+  ///
+  /// Android ignores this. The AdMob Meta adapter initializes Audience
+  /// Network itself from the bidding configuration.
+  static Future<void> prepareForMediation({
+    required bool advertiserTrackingEnabled,
+  }) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return;
+    }
+    try {
+      await _methods.invokeMethod<void>('prepareForMediation', {
+        'advertiserTrackingEnabled': advertiserTrackingEnabled,
+      });
+    } on PlatformException catch (error) {
+      debugPrint(
+        'EasyAds: Meta bidding tracking flag was not set. ${error.message}',
+      );
+    } on MissingPluginException catch (error) {
+      debugPrint('EasyAds: Meta bidding tracking flag was not set. $error');
+    }
+  }
+
   /// Initializes Meta Audience Network.
   static Future<void> initialize({
     required bool testMode,

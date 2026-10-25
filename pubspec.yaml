@@ -1,6 +1,6 @@
 name: easy_ads_sdk
-description: "One Flutter API for AdMob and Meta Audience Network, with priority and automatic fallback."
-version: 0.1.0
+description: "One Flutter API for AdMob and Meta Audience Network, with priority, automatic fallback, and Meta bidding inside AdMob."
+version: 0.1.1
 
 environment:
   sdk: ^3.10.0
@@ -10,6 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
   google_mobile_ads: 9.1.0
+  # Official AdMob adapter. Present in every app that depends on this
+  # package, so Meta bidding runs without an extra app dependency.
+  # 1.7.1 is the build tested with google_mobile_ads 9.1.0:
+  # Android adapter 6.22.0.1, iOS adapter 6.22.0.0, Audience Network 6.22.0.
+  gma_mediation_meta: 1.7.1
 
 dev_dependencies:
   flutter_test:
