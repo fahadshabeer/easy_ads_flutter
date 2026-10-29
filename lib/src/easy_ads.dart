@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -8,12 +9,32 @@ import 'ad_error.dart';
 import 'consent_debug.dart';
 import 'internal/waterfall.dart';
 
+/// Result of [EasyAds.requestIosTrackingAuthorization].
+enum IosTrackingStatus {
+  /// The user allowed tracking.
+  authorized,
+
+  /// The user denied tracking.
+  denied,
+
+  /// Tracking is restricted on this device.
+  restricted,
+
+  /// The user has not answered yet.
+  notDetermined,
+
+  /// This platform does not use App Tracking Transparency.
+  notSupported,
+}
+
 /// Entry point for the SDK.
 ///
 /// Call [initialize] once after `WidgetsFlutterBinding.ensureInitialized()`
 /// and before any ad is created.
 class EasyAds {
   EasyAds._();
+
+  static const MethodChannel _tracking = MethodChannel('easy_ads_sdk/tracking');
 
   static bool _testMode = false;
   static bool _ready = false;
@@ -136,6 +157,33 @@ class EasyAds {
       initialized: _ready,
       canRequestAds: _canRequestAds,
     );
+  }
+
+  /// Shows the iOS App Tracking Transparency prompt.
+  ///
+  /// The host app must include `NSUserTrackingUsageDescription` in
+  /// `Info.plist` before this is called. On Android this returns
+  /// [IosTrackingStatus.notSupported] and does not show a prompt.
+  ///
+  /// Call this before [initialize] when the app asks for tracking. On iOS 17
+  /// and later, the Meta mediation adapter reads that system status itself.
+  static Future<IosTrackingStatus> requestIosTrackingAuthorization() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) {
+      return IosTrackingStatus.notSupported;
+    }
+    try {
+      final status = await _tracking.invokeMethod<String>('requestTracking');
+      return switch (status) {
+        'authorized' => IosTrackingStatus.authorized,
+        'denied' => IosTrackingStatus.denied,
+        'restricted' => IosTrackingStatus.restricted,
+        _ => IosTrackingStatus.notDetermined,
+      };
+    } on MissingPluginException {
+      return IosTrackingStatus.notDetermined;
+    } on PlatformException {
+      return IosTrackingStatus.notDetermined;
+    }
   }
 
   static Future<void> _initialize({

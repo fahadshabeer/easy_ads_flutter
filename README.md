@@ -73,6 +73,7 @@ Start the SDK once. Meta bidding runs on the AdMob request.
 ```dart
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyAds.requestIosTrackingAuthorization();
   final startup = EasyAds.initialize(
     testMode: false, // true swaps in Google demo units and skips your mediation group
   );
@@ -86,6 +87,7 @@ These are the ad APIs. Each one takes the AdMob ad unit id that you mapped to a 
 | API | Role with Meta bidding |
 |---|---|
 | `EasyAds.initialize` | Starts consent, then AdMob. The Meta adapter initializes from the AdMob bidding configuration. |
+| `EasyAds.requestIosTrackingAuthorization` | iOS tracking prompt. Call it before `initialize`. Returns [IosTrackingStatus]. On Android it returns `notSupported`. |
 | `EasyAds.canRequestAds` | `true` when consent allows a request. |
 | `EasyAds.isPrivacyOptionsRequired` | `true` when the app must show a settings entry that calls `EasyAds.showPrivacyOptionsForm`. |
 | `EasyBannerAd` | Banner. Loads when the widget is built. `size` is `EasyBannerSize.banner`, `large`, or `mediumRectangle`. |
@@ -134,7 +136,7 @@ The AdMob app id is still required. Sections [2. Android setup](#2-android-setup
 | AdMob app id in `AndroidManifest.xml` and `Info.plist` | Yes. Same value you already use for AdMob. |
 | Android `minSdk` 24, iOS deployment target 15 | Yes. |
 | `SKAdNetworkItems` from the iOS section, including `v9wttpbfk9.skadnetwork` and `n38lu8286q.skadnetwork` | Yes, on iOS. |
-| `NSUserTrackingUsageDescription` | On iOS, when the app shows the App Tracking Transparency prompt. This package does not show that prompt. On iOS 17 and later, Meta reads the system tracking status itself. |
+| `NSUserTrackingUsageDescription` | Yes, on iOS, before `EasyAds.requestIosTrackingAuthorization`. On iOS 17 and later, Meta reads that system status itself. |
 
 After `flutter pub upgrade easy_ads_sdk`, build and install the app again so the adapter is in the binary.
 
@@ -344,7 +346,7 @@ Add Google's SKAdNetwork list. `cstr6suwn9.skadnetwork` is Google. `v9wttpbfk9.s
 
 This list matches Google's iOS quick start as published on 2 October 2026. When you update the Google SDK, compare it with [Set up Google Mobile Ads SDK for iOS](https://developers.google.com/admob/ios/quick-start) and add any new identifiers.
 
-If the app shows the iOS tracking prompt, add a usage description. iOS will not show the prompt without it. This package does not show the prompt. On iOS 17 and later, the Meta adapter reads App Tracking Transparency itself.
+If the app shows the iOS tracking prompt, add a usage description. iOS will not show the prompt without it. Call `EasyAds.requestIosTrackingAuthorization()` before `EasyAds.initialize()`. On Android that call returns `IosTrackingStatus.notSupported` and does not show a dialog. On iOS 17 and later, the Meta adapter reads App Tracking Transparency itself.
 
 ```xml
 <key>NSUserTrackingUsageDescription</key>
@@ -358,6 +360,7 @@ import 'package:easy_ads_sdk/easy_ads_sdk.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyAds.requestIosTrackingAuthorization();
   final startup = EasyAds.initialize(
     testMode: true, // false in production
   );
@@ -407,7 +410,7 @@ The tap opens the same Google form. The user can allow ads, allow limited ads, o
 
 Call `showPrivacyOptionsForm()` only when `isPrivacyOptionsRequired` is true. Calling it otherwise throws.
 
-This row does not open Apple's tracking prompt. After the user has answered that prompt, they change tracking in the iPhone Settings app, under Privacy & Security, then Tracking.
+This row does not open Apple's tracking prompt. That system dialog can appear only once, from `EasyAds.requestIosTrackingAuthorization`, and it must run before `initialize`. After the user has answered it, they change tracking in the iPhone Settings app, under Privacy & Security, then Tracking.
 
 Users under the age of consent must not see the form:
 

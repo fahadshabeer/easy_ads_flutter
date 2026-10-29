@@ -1,3 +1,7 @@
+## 0.2.1
+
+* Restores `EasyAds.requestIosTrackingAuthorization`. It shows the iOS tracking prompt and does not use the Facebook Ads SDK.
+
 ## 0.2.0
 
 * Removes the direct Meta Audience Network SDK and every Facebook placement, priority, and native ad path.
