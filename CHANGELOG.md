@@ -1,3 +1,8 @@
+## 0.2.0
+
+* Removes the direct Meta Audience Network SDK and every Facebook placement, priority, and native ad path.
+* Ads are requested through AdMob only. Meta inventory still fills when Meta Audience Network is a bidding source, through `gma_mediation_meta` 1.7.1.
+
 ## 0.1.1
 
 * Bundles the AdMob Meta Audience Network bidding adapter (`gma_mediation_meta` 1.7.1, Android adapter 6.22.0.1, iOS adapter 6.22.0.0).

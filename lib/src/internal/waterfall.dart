@@ -1,6 +1,5 @@
 import '../ad_error.dart';
 import '../ad_network.dart';
-import '../easy_ads.dart';
 import 'load_order.dart';
 
 /// The outcome of asking one network for an ad.
@@ -18,17 +17,12 @@ class LoadAttempt {
 
 /// Asks each network in priority order and stops at the first fill.
 Future<EasyAdNetwork?> runWaterfall({
-  required String? facebookPlacementId,
   required bool Function() isCancelled,
   required Future<LoadAttempt> Function(EasyAdNetwork network) load,
   required Future<void> Function(EasyAdNetwork network) discard,
   required List<EasyAdFailure> failures,
 }) async {
-  final order = resolveLoadOrder(
-    priority: EasyAds.priority,
-    facebookEnabled: EasyAds.isFacebookEnabled,
-    facebookPlacementId: facebookPlacementId,
-  );
+  final order = resolveLoadOrder();
 
   for (final network in order) {
     if (isCancelled()) {

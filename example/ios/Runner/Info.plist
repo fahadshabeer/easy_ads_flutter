@@ -70,12 +70,6 @@
 	<string>This identifier is used to show ads that are more relevant to you.</string>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-3940256099942544~1458002511</string>
-	<key>FacebookAppID</key>
-	<string>2312433698835503</string>
-	<key>FacebookClientToken</key>
-	<string>00000000000000000000000000000000</string>
-	<key>FacebookDisplayName</key>
-	<string>Easy Ads</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict><key>SKAdNetworkIdentifier</key><string>cstr6suwn9.skadnetwork</string></dict>

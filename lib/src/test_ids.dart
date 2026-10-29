@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'ad_format.dart';
 
-/// Google's public demo ad units, and Meta's public sample placement ids.
+/// Google's public demo ad units.
 ///
 /// Demo ad units are safe to click. Replace them before you ship.
 class EasyTestIds {
@@ -29,26 +29,6 @@ class EasyTestIds {
   static const _iosRewardedInterstitial =
       'ca-app-pub-3940256099942544/6978759866';
   static const _iosNative = 'ca-app-pub-3940256099942544/3986624511';
-
-  /// Meta sample banner placement. Already a test creative.
-  static const facebookBanner =
-      'IMG_16_9_APP_INSTALL#2312433698835503_2964944860251047';
-
-  /// Meta sample interstitial placement. Already a test creative.
-  static const facebookInterstitial =
-      'IMG_16_9_APP_INSTALL#2312433698835503_2650502525028617';
-
-  /// Meta sample rewarded placement. Already a test creative.
-  static const facebookRewarded =
-      'VID_HD_16_9_46S_APP_INSTALL#2312433698835503_2650502525028617';
-
-  /// Meta sample rewarded interstitial placement. Already a test creative.
-  static const facebookRewardedInterstitial =
-      'VID_HD_16_9_46S_APP_INSTALL#2312433698835503_2650502525028617';
-
-  /// Meta sample native placement. Already a test creative.
-  static const facebookNative =
-      'IMG_16_9_APP_INSTALL#2312433698835503_2964953543583512';
 
   /// Demo AdMob ad unit for [format] on the current platform.
   static String admob(EasyAdFormat format, {TargetPlatform? platform}) {

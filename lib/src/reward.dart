@@ -12,8 +12,7 @@ class EasyReward {
   /// How much of [type] the user earned.
   final int amount;
 
-  /// The reward name. AdMob uses the name configured on the ad unit.
-  /// Facebook reports `reward` when the video completes.
+  /// The reward name configured on the AdMob ad unit.
   final String type;
 
   /// The network that granted the reward.

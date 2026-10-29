@@ -1,11 +1,11 @@
-/// Banner sizes supported by both AdMob and Meta Audience Network.
+/// Banner sizes for AdMob.
 enum EasyBannerSize {
-  /// 320x50 on AdMob. 50pt tall on Facebook.
+  /// 320x50.
   banner,
 
-  /// 320x100 on AdMob. 90pt tall on Facebook.
+  /// 320x100.
   large,
 
-  /// 300x250 on both networks.
+  /// 300x250.
   mediumRectangle,
 }

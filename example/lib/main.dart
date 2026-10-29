@@ -4,8 +4,6 @@ import 'package:easy_ads_sdk/easy_ads_sdk.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final startup = EasyAds.initialize(
-    priority: EasyAdPriority.admob,
-    facebook: const FacebookOptions(),
     testMode: true,
   );
   runApp(ExampleApp(startup: startup));
@@ -42,7 +40,6 @@ class _ExampleHomeState extends State<ExampleHome> {
   bool _privacyOptions = false;
   late final EasyInterstitialAd _interstitial = EasyInterstitialAd(
     admobAdUnitId: EasyTestIds.interstitial,
-    facebookPlacementId: EasyTestIds.facebookInterstitial,
     onLoading: () => _setStatus('Interstitial loading'),
     onLoaded: (network) => _setStatus('Interstitial loaded from ${network.name}'),
     onError: (error) => _setStatus('Interstitial error: ${error.message}'),
@@ -59,7 +56,6 @@ class _ExampleHomeState extends State<ExampleHome> {
   );
   late final EasyRewardedAd _rewarded = EasyRewardedAd(
     admobAdUnitId: EasyTestIds.rewarded,
-    facebookPlacementId: EasyTestIds.facebookRewarded,
     onLoading: () => _setStatus('Rewarded loading'),
     onLoaded: (network) => _setStatus('Rewarded loaded from ${network.name}'),
     onError: (error) => _setStatus('Rewarded error: ${error.message}'),
@@ -69,7 +65,6 @@ class _ExampleHomeState extends State<ExampleHome> {
   late final EasyRewardedInterstitialAd _rewardedInterstitial =
       EasyRewardedInterstitialAd(
     admobAdUnitId: EasyTestIds.rewardedInterstitial,
-    facebookPlacementId: EasyTestIds.facebookRewardedInterstitial,
     onLoading: () => _setStatus('Rewarded interstitial loading'),
     onLoaded: (network) =>
         _setStatus('Rewarded interstitial loaded from ${network.name}'),
@@ -146,7 +141,6 @@ class _ExampleHomeState extends State<ExampleHome> {
           const SizedBox(height: 8),
           EasyNativeAd(
             admobAdUnitId: EasyTestIds.native,
-            facebookPlacementId: EasyTestIds.facebookNative,
             onLoading: () => _setStatus('Native loading'),
             onLoaded: (network) => _setStatus('Native loaded from ${network.name}'),
             onError: (error) => _setStatus('Native error: ${error.message}'),
@@ -213,7 +207,6 @@ class _ExampleHomeState extends State<ExampleHome> {
       bottomNavigationBar: SafeArea(
         child: EasyBannerAd(
           admobAdUnitId: EasyTestIds.banner,
-          facebookPlacementId: EasyTestIds.facebookBanner,
           onLoading: () => _setStatus('Banner loading'),
           onLoaded: (network) => _setStatus('Banner loaded from ${network.name}'),
           onError: (error) => _setStatus('Banner error: ${error.message}'),

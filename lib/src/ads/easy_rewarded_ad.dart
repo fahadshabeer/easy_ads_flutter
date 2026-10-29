@@ -6,7 +6,6 @@ import '../ad_error.dart';
 import '../ad_format.dart';
 import '../ad_network.dart';
 import '../easy_ads.dart';
-import '../facebook/facebook_bridge.dart';
 import '../internal/ad_ids.dart';
 import '../internal/waterfall.dart';
 import '../reward.dart';
@@ -14,13 +13,12 @@ import 'fullscreen_ad.dart';
 
 /// A rewarded ad.
 ///
-/// [onReward] runs when AdMob reports the reward, or when the Facebook video
-/// completes. Grant the reward from that callback.
+/// [onReward] runs when AdMob reports the reward. Grant the reward from
+/// that callback.
 class EasyRewardedAd extends FullScreenAdBase {
   /// Creates a rewarded ad.
   EasyRewardedAd({
     required super.admobAdUnitId,
-    super.facebookPlacementId,
     super.onLoading,
     super.onLoaded,
     super.onError,
@@ -32,10 +30,7 @@ class EasyRewardedAd extends FullScreenAdBase {
 
   @override
   Future<LoadAttempt> loadNetwork(EasyAdNetwork network) {
-    return switch (network) {
-      EasyAdNetwork.admob => _loadAdmob(),
-      EasyAdNetwork.facebook => _loadFacebook(),
-    };
+    return _loadAdmob();
   }
 
   Future<LoadAttempt> _loadAdmob() {
@@ -88,61 +83,29 @@ class EasyRewardedAd extends FullScreenAdBase {
     return completer.future;
   }
 
-  Future<LoadAttempt> _loadFacebook() {
-    final placementId = resolveFacebookPlacementId(
-      placementId: facebookPlacementId,
-      format: format,
-      testMode: EasyAds.testMode,
-    );
-    if (placementId == null) {
-      return Future.value(
-        const LoadAttempt.failed(
-          EasyAdFailure(
-            network: EasyAdNetwork.facebook,
-            message: 'Facebook placement id is missing.',
-          ),
-        ),
-      );
-    }
-    return loadFacebook(
-      (id) =>
-          FacebookBridge.loadRewarded(id: id, placementId: placementId),
-    );
-  }
-
   @override
   Future<void> showNetwork(EasyAdNetwork network) async {
-    switch (network) {
-      case EasyAdNetwork.admob:
-        final ad = _ad;
-        if (ad == null) {
-          throw StateError('AdMob rewarded ad is not loaded.');
-        }
-        await ad.show(
-          onUserEarnedReward: (ad, reward) {
-            notifyReward(
-              EasyReward(
-                amount: reward.amount.round(),
-                type: reward.type,
-                network: EasyAdNetwork.admob,
-              ),
-            );
-          },
-        );
-      case EasyAdNetwork.facebook:
-        await showFacebook((id) => FacebookBridge.showRewarded(id: id));
+    final ad = _ad;
+    if (ad == null) {
+      throw StateError('AdMob rewarded ad is not loaded.');
     }
+    await ad.show(
+      onUserEarnedReward: (ad, reward) {
+        notifyReward(
+          EasyReward(
+            amount: reward.amount.round(),
+            type: reward.type,
+            network: EasyAdNetwork.admob,
+          ),
+        );
+      },
+    );
   }
 
   @override
   Future<void> discardNetwork(EasyAdNetwork network) async {
-    switch (network) {
-      case EasyAdNetwork.admob:
-        final ad = _ad;
-        _ad = null;
-        ad?.dispose();
-      case EasyAdNetwork.facebook:
-        await clearFacebook();
-    }
+    final ad = _ad;
+    _ad = null;
+    ad?.dispose();
   }
 }

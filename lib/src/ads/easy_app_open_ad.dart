@@ -12,7 +12,7 @@ import 'fullscreen_ad.dart';
 
 /// A full-screen ad shown when the app opens.
 ///
-/// AdMob is the only network. Meta Audience Network has no app open format.
+/// Meta Audience Network has no app open format, including through mediation.
 /// Load it on the splash screen, then call [show] from [onLoaded].
 ///
 /// [onTimeout] runs when the load is still unfinished after [timeout].
@@ -35,17 +35,7 @@ class EasyAppOpenAd extends FullScreenAdBase {
 
   @override
   Future<LoadAttempt> loadNetwork(EasyAdNetwork network) {
-    return switch (network) {
-      EasyAdNetwork.admob => _loadAdmob(),
-      EasyAdNetwork.facebook => Future.value(
-        const LoadAttempt.failed(
-          EasyAdFailure(
-            network: EasyAdNetwork.facebook,
-            message: 'App open ads are AdMob only.',
-          ),
-        ),
-      ),
-    };
+    return _loadAdmob();
   }
 
   Future<LoadAttempt> _loadAdmob() {
@@ -109,9 +99,6 @@ class EasyAppOpenAd extends FullScreenAdBase {
 
   @override
   Future<void> discardNetwork(EasyAdNetwork network) async {
-    if (network != EasyAdNetwork.admob) {
-      return;
-    }
     final ad = _ad;
     _ad = null;
     ad?.dispose();

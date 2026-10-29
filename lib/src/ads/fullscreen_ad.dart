@@ -6,7 +6,6 @@ import '../ad_error.dart';
 import '../ad_format.dart';
 import '../ad_network.dart';
 import '../easy_ads.dart';
-import '../facebook/facebook_bridge.dart';
 import '../internal/load_gate.dart';
 import '../internal/waterfall.dart';
 import '../reward.dart';
@@ -17,7 +16,6 @@ abstract class FullScreenAdBase {
   FullScreenAdBase({
     required this.admobAdUnitId,
     required this.format,
-    this.facebookPlacementId,
     this.onLoading,
     this.onLoaded,
     this.onError,
@@ -32,9 +30,6 @@ abstract class FullScreenAdBase {
 
   /// Which full-screen format this object loads.
   final EasyAdFormat format;
-
-  /// Facebook placement id. Omit it to use AdMob only.
-  final String? facebookPlacementId;
 
   /// Called once, when the first request starts.
   final VoidCallback? onLoading;
@@ -70,8 +65,6 @@ abstract class FullScreenAdBase {
   int _generation = 0;
   Timer? _timeoutTimer;
   AdLoadGate? _gate;
-  String? _facebookId;
-  StreamSubscription<FacebookEvent>? _facebookSub;
 
   /// Whether [load] has finished with an ad that can be shown.
   bool get isLoaded => _loadedNetwork != null && !_disposed;
@@ -136,10 +129,7 @@ abstract class FullScreenAdBase {
     } catch (error) {
       _showing = false;
       _loadedNetwork = null;
-      final message = error is FacebookCallException
-          ? error.message
-          : error.toString();
-      onError?.call(EasyAdError(message: message));
+      onError?.call(EasyAdError(message: error.toString()));
       rethrow;
     }
   }
@@ -157,7 +147,6 @@ abstract class FullScreenAdBase {
     _loadedNetwork = null;
     _showing = false;
     await discardNetwork(EasyAdNetwork.admob);
-    await discardNetwork(EasyAdNetwork.facebook);
   }
 
   /// Loads one network. Implemented by each format.
@@ -169,48 +158,6 @@ abstract class FullScreenAdBase {
   /// Destroys a network's ad object if this controller still holds one.
   Future<void> discardNetwork(EasyAdNetwork network);
 
-  /// Loads Facebook and keeps the subscription for reward and close events.
-  @protected
-  Future<LoadAttempt> loadFacebook(
-    Future<void> Function(String id) load,
-  ) async {
-    final id = FacebookBridge.newId(format.name);
-    _facebookId = id;
-    await _facebookSub?.cancel();
-    _facebookSub = FacebookBridge.listen(id, _onFacebookEvent);
-    try {
-      await load(id);
-      return const LoadAttempt.filled();
-    } on FacebookCallException catch (error) {
-      await _clearFacebook();
-      return LoadAttempt.failed(
-        EasyAdFailure(
-          network: EasyAdNetwork.facebook,
-          message: error.message,
-          code: error.code,
-        ),
-      );
-    }
-  }
-
-  /// Shows the Facebook ad stored for this controller.
-  @protected
-  Future<void> showFacebook(Future<void> Function(String id) show) async {
-    final id = _facebookId;
-    if (id == null) {
-      throw StateError('Facebook ad is not loaded.');
-    }
-    await show(id);
-  }
-
-  /// Clears the Facebook ad held by this controller.
-  @protected
-  Future<void> clearFacebook() => _clearFacebook();
-
-  /// The Facebook instance id, when a Facebook load has started.
-  @protected
-  String? get facebookId => _facebookId;
-
   /// Called by AdMob when the full-screen ad closes.
   @protected
   void notifyClosed() {
@@ -219,7 +166,6 @@ abstract class FullScreenAdBase {
     }
     _showing = false;
     _loadedNetwork = null;
-    _facebookId = null;
     onClosed?.call();
   }
 
@@ -262,7 +208,6 @@ abstract class FullScreenAdBase {
       }
       onTimeout?.call();
       unawaited(discardNetwork(EasyAdNetwork.admob));
-      unawaited(discardNetwork(EasyAdNetwork.facebook));
     });
   }
 
@@ -288,7 +233,6 @@ abstract class FullScreenAdBase {
     onLoading?.call();
     final failures = <EasyAdFailure>[];
     final network = await runWaterfall(
-      facebookPlacementId: facebookPlacementId,
       isCancelled: () => _disposed || gate.timedOut || generation != _generation,
       failures: failures,
       load: loadNetwork,
@@ -305,38 +249,5 @@ abstract class FullScreenAdBase {
     _loadedNetwork = network;
     onLoaded?.call(network);
     return true;
-  }
-
-  void _onFacebookEvent(FacebookEvent event) {
-    if (_disposed || (_gate?.timedOut ?? false) || event.id != _facebookId) {
-      return;
-    }
-    switch (event.type) {
-      case 'reward':
-        onReward?.call(
-          EasyReward(
-            amount: event.rewardAmount ?? 1,
-            type: event.rewardType ?? 'reward',
-            network: EasyAdNetwork.facebook,
-          ),
-        );
-      case 'closed':
-        _showing = false;
-        _loadedNetwork = null;
-        _facebookId = null;
-        onClosed?.call();
-      case 'show_failed':
-        notifyShowFailed(event.message ?? 'Facebook ad failed to show.');
-    }
-  }
-
-  Future<void> _clearFacebook() async {
-    await _facebookSub?.cancel();
-    _facebookSub = null;
-    final id = _facebookId;
-    _facebookId = null;
-    if (id != null) {
-      await FacebookBridge.dispose(id: id);
-    }
   }
 }
